@@ -1,0 +1,22 @@
+FROM node:20.1.0-alpine
+
+WORKDIR /app
+
+# Install curl and wget if you need them in dev
+RUN apk --no-cache add curl wget
+
+# Copy package files first to leverage Docker cache
+COPY package*.json ./
+
+# Install dependencies including development ones
+RUN npm install
+
+# Don't need to copy source files here if using volumes
+# But if you run without volumes, you'd need:
+# COPY . .
+
+# Expose the port the app runs on
+EXPOSE 3000
+
+# Start in development mode
+CMD ["npm", "run", "dev"]

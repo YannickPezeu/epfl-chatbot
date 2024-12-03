@@ -1,0 +1,9 @@
+.git
+node_modules
+npm-debug.log
+data/
+epfl_hr_scraper/
+.idea/
+temp/
+tests/
+local.db

@@ -1,0 +1,45 @@
+/* ChatMessage.module.css */
+.userMessageContainer {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end; /* Par défaut, aligne les messages de l'utilisateur à droite */
+}
+
+.botMessageContainer {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start; /* Par défaut, aligne les messages de l'utilisateur à droite */
+}
+
+.errorMessageContainer {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start; /* Par défaut, aligne les messages de l'utilisateur à droite */
+}
+
+.userMessage, .botMessage, .errorMessage {
+  display: inline-block;
+  max-width: 80%;
+  margin: 10px 0;
+  padding: 10px;
+  border-radius: 10px;
+  background-color: #dbfcd4; /* Couleur par défaut pour l'utilisateur */
+  color: black;
+}
+
+.userMessage {
+  background-color: #dbfcd4; /* Spécifique à l'utilisateur */
+  margin-right: 0; /* Assure l'alignement à droite */
+}
+
+.botMessage {
+  background-color: rgb(199, 198, 198); /* Spécifique au bot */
+  justify-content: flex-start; /* Override pour aligner les messages du bot à gauche */
+  margin-left: 0; /* Assure l'alignement à gauche */
+}
+
+.errorMessage {
+  background-color: #fcd4d4; /* Couleur pour les messages d'erreur */
+  justify-content: flex-start; /* Override pour aligner les messages du bot à gauche */
+  margin-left: 0; /* Assure l'alignement à gauche */
+}

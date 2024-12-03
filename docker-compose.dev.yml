@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/python-docker
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=redis  # Add Redis connection details
+      - REDIS_PORT=6379
+    depends_on:
+      - redis  # Make sure Redis starts before backend
+
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"  # Exposed for local development/debugging
+    volumes:
+      - redis-data:/data  # Persist Redis data
+    command: redis-server --appendonly yes  # Enable data persistence
+
+volumes:
+  redis-data:  # Define the volume for Redis persistence

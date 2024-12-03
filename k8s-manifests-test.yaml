@@ -1,0 +1,191 @@
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epfl-chatbot-redis-test
+  namespace: epfl-chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: epfl-chatbot-redis-test
+  template:
+    metadata:
+      labels:
+        app: epfl-chatbot-redis-test
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+            ephemeral-storage: "500Mi"  # Added ephemeral storage request
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+            ephemeral-storage: "1Gi"    # Added ephemeral storage limit
+        volumeMounts:
+        - name: redis-data-test
+          mountPath: /data-test
+      volumes:
+      - name: redis-data-test
+        emptyDir:
+          sizeLimit: 1Gi  # Added size limit for emptyDir volume
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: epfl-chatbot-redis-test
+  namespace: epfl-chatbot
+spec:
+  selector:
+    app: epfl-chatbot-redis-test
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epfl-chatbot-compose-backend-test
+  namespace: epfl-chatbot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: epfl-chatbot-compose-backend-test
+  template:
+    metadata:
+      labels:
+        app: epfl-chatbot-compose-backend-test
+    spec:
+      containers:
+      - name: epfl-chatbot-compose-backend-test
+        image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-backend-test
+        ports:
+        - containerPort: 8000
+        env:
+          - name: REDIS_HOST
+            value: "epfl-chatbot-redis-test"
+          - name: REDIS_PORT
+            value: "6379"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+            ephemeral-storage: "20Gi"  # Enough for your image + working files
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+            ephemeral-storage: "25Gi"
+
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: epfl-chatbot-backend-service-compose-test
+  namespace: epfl-chatbot
+spec:
+  type: NodePort
+  sessionAffinity: ClientIP
+  selector:
+    app: epfl-chatbot-compose-backend-test
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epfl-chatbot-compose-frontend-test
+  namespace: epfl-chatbot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: epfl-chatbot-compose-frontend-test
+  template:
+    metadata:
+      labels:
+        app: epfl-chatbot-compose-frontend-test
+    spec:
+      containers:
+      - name: epfl-chatbot-compose-frontend-test
+        image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-frontend-test
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_BACKEND_URL
+          value: "http://epfl-chatbot-backend-service-compose-test:8000"
+        - name: BACKEND_URL
+          value: "http://epfl-chatbot-backend-service-compose-test:8000"
+        - name: NODE_ENV
+          value: "production"
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: epfl-chatbot-frontend-service-compose-test
+  namespace: epfl-chatbot
+spec:
+  type: NodePort
+  sessionAffinity: ClientIP
+  selector:
+    app: epfl-chatbot-compose-frontend-test
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+---
+#ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: epfl-chatbot-frontend-ingress-test
+  namespace: epfl-chatbot
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "900m"
+    # Sticky session configuration
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "CHATBOTSESSION"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "true"
+
+spec:
+  rules:
+  - host: lex-chatbot-test.epfl.ch
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: epfl-chatbot-frontend-service-compose-test
+            port:
+              number: 80
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: epfl-chatbot2
+---

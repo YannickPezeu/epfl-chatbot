@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim-buster
+
+WORKDIR /python-docker
+
+COPY requirements.txt requirements.txt
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    build-essential \
+    poppler-utils \
+    tesseract-ocr \
+    libtesseract-dev \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --upgrade pip
+RUN pip install pypdf python-multipart
+RUN pip install -r requirements.txt
+
+# Install pdf2image
+RUN pip install pdf2image
+
+# Install pytesseract
+RUN pip install pytesseract
+
+# Clean up
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY . .
+
+EXPOSE 8000
+EXPOSE 80
+EXPOSE 443
+
+ENV NAME World
+
+# Set Tesseract data path
+ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata
+
+CMD ["python", "main.py"]
