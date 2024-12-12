@@ -289,37 +289,46 @@ export const ChatMessage = ({
   };
 
   if (messageType === "No_Model") {
-    console.log('source', sources)
     return (
       <div className={`${sender === "You" ? styles.userMessageContainer : styles.botMessageContainer}`}>
         <div className={`${sender === "You" ? styles.userMessage : styles.botMessage}`}>
           {sources?.map((source, index) => (
-            <div key={index} className="flex justify-between items-center mb-6">
+            <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', width: '100%', flexWrap: 'nowrap' }}>
               <Tooltip title="Opens saved PDF at the right page">
-                <div
+                <span
                   onClick={() => onClickSource(source.pdf_id, parseInt(source.page_number) + 1)}
-                  className="cursor-pointer hover:underline flex-grow"
+                  style={{ 
+                    cursor: 'pointer',
+                    flexGrow: 1,
+                    whiteSpace: 'normal'
+                  }}
+                  className="hover:font-bold"
                 >
                   {source.title.replace(/_/g, " ")} (page {parseInt(source.page_number) + 1}){": "}
-                </div>
+                </span>
               </Tooltip>
-
-              <Tooltip title="Opens up-to-date URL">
-                <FontAwesomeIcon
-                  icon={faExternalLinkAlt}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openInNewTab(source.url);
-                  }}
-                  className="cursor-pointer ml-2"
-                />
-              </Tooltip>
+  
+              {source.url && source.url !== 'unknown' && (
+                <Tooltip title="Opens up-to-date URL">
+                  <span style={{ flexShrink: 0, marginLeft: '8px', display: 'inline-flex', alignItems: 'center' }}>
+                    <FontAwesomeIcon
+                      icon={faExternalLinkAlt}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openInNewTab(source.url);
+                      }}
+                      className="cursor-pointer hover:scale-110 transition-transform"
+                    />
+                  </span>
+                </Tooltip>
+              )}
             </div>
           ))}
         </div>
       </div>
     );
-  } else if (messageType === "tool_input") {
+  }
+  else if (messageType === "tool_input") {
     return (
       <div
         className={
@@ -417,8 +426,9 @@ export const ChatMessage = ({
                         {parseInt(source.page_number) + 1})
                       </div>
                     </Tooltip>
+                    {source.url && source.url != 'unknown' &&
                     <Tooltip title="Opens up to date url">
-                    <FontAwesomeIcon
+                     <FontAwesomeIcon
                       icon={faExternalLinkAlt}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -427,6 +437,7 @@ export const ChatMessage = ({
                       style={{ cursor: "pointer" }}
                     />
                     </Tooltip>
+                    }
                   </div>
                 ))}
               </Collapse>

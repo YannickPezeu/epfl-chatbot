@@ -2,28 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import styles from '../RH_chatbot_prototype/Personal.module.css';
-
-// import styles from './Email_handler.module.css';
+import styles from './Email_handler.module.css';
 import SignupModal from '../components/SignupModal/SignupModal';
 import Main from '../components/Main/Main';
 import {useStore} from '../store';
-
 
 export default function Personal() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [shouldTryLogin, setShouldTryLogin] = useState(false);
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false);
   const [fullURL, setFullURL] = useState('');
-
 
   const router = useRouter();
   const [isBaseUrlSet, setIsBaseUrlSet] = useState(false);
   const [hasCheckedLoginStatus, setHasCheckedLoginStatus] = useState(false);
-
 
   const {
     setBASE_URL,
@@ -39,13 +32,12 @@ export default function Personal() {
     setIsLoggedIn,
     interaction_type,
     setInteractionType,
-
-
   } = useStore();
-  if (interaction_type !== 'email') {setInteractionType('email');}
+
+  if(interaction_type !== 'chat'){ setInteractionType('chat');}
+
   useEffect(() => {
     const fullURL = window.location.href;
-    console.log('fullURL', fullURL);
     if(fullURL.includes('test')) {
       setBASE_URL(BASE_URL_ONLINE_TEST);
       setBASE_URL_WS(BASE_URL_ONLINE_WS_TEST);
@@ -53,17 +45,36 @@ export default function Personal() {
       setBASE_URL(BASE_URL_ONLINE);
       setBASE_URL_WS(BASE_URL_ONLINE_WS);
     }
-
     setIsBaseUrlSet(true);
   }, []);
-  
 
-
-
+  const attemptLogin = async (loginUsername: string, loginPassword: string) => {
+    try {
+      const urlWithParameter = `${BASE_URL}/auth/login?username=${encodeURIComponent(loginUsername)}&password=${encodeURIComponent(loginPassword)}`;
+      const response = await fetch(urlWithParameter, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setIsLoggedIn(true);
+          setError('');
+        } else {
+          setError(data.message || 'Login failed');
+        }
+      } else {
+        setError('Invalid username or password');
+      }
+    } catch (error) {
+      console.error('Error during login:', error);
+      setError('An error occurred during login');
+    }
+  };
 
   const handleSignup = async (newUsername: string, newPassword: string) => {
     try {
-
       const urlWithParameter = `${BASE_URL}/auth/signup?username=${encodeURIComponent(newUsername)}&password=${encodeURIComponent(newPassword)}`;
       const response = await fetch(urlWithParameter, {
         method: 'POST',
@@ -73,17 +84,9 @@ export default function Personal() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          // Set the username and password, then trigger login
-          setUsername(newUsername);
-          setPassword(newPassword);
-          setShouldTryLogin(true);
-          // Create a mock event for handleLogin
-          const mockEvent = {
-            preventDefault: () => {}
-        } as React.FormEvent;
-        
-        // Call handleLogin
-        await handleLogin(mockEvent);
+          // Instead of setting state and calling login separately,
+          // directly attempt login with the new credentials
+          await attemptLogin(newUsername, newPassword);
         } else {
           setError(data.message || 'Signup failed');
         }
@@ -125,37 +128,11 @@ export default function Personal() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-        const urlWithParameter = `${BASE_URL}/auth/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-        const response = await fetch(urlWithParameter, {
-            method: 'POST',
-            credentials: 'include',
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Login response data:', data);
-            if (data.success) {
-              setIsLoggedIn(true);
-              setError('');
-          } else {
-                setError(data.message || 'Login failed');
-            }
-        } else {
-            setError('Invalid username or password');
-        }
-    } catch (error) {
-        console.error('Error during login:', error);
-        setError('An error occurred during login');
-    }
-};
+    await attemptLogin(username, password);
+  };
 
   if (isLoggedIn) {
-    return (
-      <Main
-      extend={false}
-      ></Main>
-    );
+    return <Main extend={false} />;
   }
 
   return (
@@ -191,4 +168,3 @@ export default function Personal() {
     </div>
   );
 }
-

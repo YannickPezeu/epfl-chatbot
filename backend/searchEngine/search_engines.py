@@ -1,13 +1,12 @@
 import json
 import os
-import sqlite3
-import time
-
-import faiss
+# import sqlite3
+# import time
+#
+# import faiss
 
 from myUtils.get_embeddings import get_embeddings
-from langdetect import detect
-from sentence_transformers import CrossEncoder
+# from sentence_transformers import CrossEncoder
 from myUtils.connect_acad import reconnect_on_failure, initialize_all_connection
 from library_creation._3_create_faiss_index import retrieve_faiss_index
 
@@ -17,8 +16,8 @@ from pymysql.err import InterfaceError, OperationalError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+# import torch
+# from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import tiktoken
 tiktoken_encoding = tiktoken.get_encoding("cl100k_base")
 from langchain.agents import tool, create_tool_calling_agent
@@ -33,29 +32,29 @@ rerankers = {
     'gte': {}
 }
 
-def reranker(model_name_or_path, query, paragraphs):
-    if model_name_or_path in rerankers:
-        tokenizer = rerankers[model_name_or_path]['tokenizer']
-        model = rerankers[model_name_or_path]['model']
-
-    else:
-        raise ValueError('Model name not supported')
-
-    pairs = [[query, p] for p in paragraphs]
-    with torch.no_grad():
-        inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors='pt')
-        scores = model(**inputs, return_dict=True).logits.view(-1, ).float()
-
-    ordered_paragraphs = [p for _, p in sorted(zip(scores, paragraphs), reverse=True)]
-    print('query:', query)
-    print('ordered_paragraphs:')
-    for i, p in enumerate(ordered_paragraphs):
-        print('---'*100)
-        print('paragraph', i)
-        print(p)
-        print('---'*100)
-
-    return scores
+# def reranker(model_name_or_path, query, paragraphs):
+#     if model_name_or_path in rerankers:
+#         tokenizer = rerankers[model_name_or_path]['tokenizer']
+#         model = rerankers[model_name_or_path]['model']
+#
+#     else:
+#         raise ValueError('Model name not supported')
+#
+#     pairs = [[query, p] for p in paragraphs]
+#     with torch.no_grad():
+#         inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors='pt')
+#         scores = model(**inputs, return_dict=True).logits.view(-1, ).float()
+#
+#     ordered_paragraphs = [p for _, p in sorted(zip(scores, paragraphs), reverse=True)]
+#     print('query:', query)
+#     print('ordered_paragraphs:')
+#     for i, p in enumerate(ordered_paragraphs):
+#         print('---'*100)
+#         print('paragraph', i)
+#         print(p)
+#         print('---'*100)
+#
+#     return scores
 
 
 def search_engine(
@@ -190,13 +189,13 @@ def search_engine(
         })
 
     # # Rerank results
-    if rerank:
-        print('reranking')
-        scores = reranker('gte', text, [r['page_content'] for r in results])
-        scores = scores.tolist()
-        print('scores:', scores)
-        print('reranked')
-        results = [r for _, r in sorted(zip(scores, results), key=lambda x: x[0], reverse=True)]
+    # if rerank:
+    #     print('reranking')
+    #     scores = reranker('gte', text, [r['page_content'] for r in results])
+    #     scores = scores.tolist()
+    #     print('scores:', scores)
+    #     print('reranked')
+    #     results = [r for _, r in sorted(zip(scores, results), key=lambda x: x[0], reverse=True)]
     results = results[:n_results]
 
 
@@ -285,46 +284,6 @@ def create_search_engine_tool(username, library, model_name, n_results=1, mistra
 
 if __name__ == '__main__':
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.dirname(current_dir)
 
-    library = 'LEX'
-    my_test_text = 'A combien de vacances ai-je le droit ?'
-
-    results = search_engine(library, my_test_text, 'mistral', 'fr', n_results=10)
-    for r in results:
-        print('title:', r['title'])
-        print('url:', r['url'])
-        print('page_number:', r['page_number'])
-        print('pdf_id:', r['pdf_id'])
-        print('small_chunk:', r['small_chunk_content'])
-        print('---'*100)
-
-    from flask import Flask, request, Response
-    import sqlite3
-    import io
-
-    app = Flask(__name__)
-
-
-    def get_pdf_blob_from_db_online(pdf_id, cursor):
-        # Dummy database connection and retrieval logic
-
-        cursor.execute("SELECT file FROM pdfs WHERE id=?", (pdf_id,))
-        pdf_blob = cursor.fetchone()[0]
-        return pdf_blob
-
-    @app.route('/view-pdf/<int:pdf_id>')
-    def view_pdf(pdf_id):
-        conn, cursor = initialize_all_connection()
-        # Fetch the PDF blob from the database using the provided ID
-        pdf_blob = get_pdf_blob_from_db_online(pdf_id, cursor)
-
-        # Create a response from the PDF blob
-        response = Response(pdf_blob, mimetype='application/pdf')
-        response.headers['Content-Disposition'] = 'inline; filename=database_file_{0}.pdf'.format(pdf_id)
-        return response
-
-
-    app.run(debug=True)
 
 

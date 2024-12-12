@@ -10,15 +10,15 @@ sys.path.append(root_folder)
 
 # print('root_folder:', root_folder)
 
-from transformers import CamembertModel, CamembertTokenizer, pipeline
+#from transformers import CamembertModel, CamembertTokenizer, pipeline
 
 from myUtils.connect_acad import reconnect_on_failure
 
 
-import nltk
-nltk.download('punkt')
-from nltk.tokenize import sent_tokenize
-from langdetect import detect
+# import nltk
+# nltk.download('punkt')
+# from nltk.tokenize import sent_tokenize
+# from langdetect import detect
 
 import tiktoken
 openai_tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -39,86 +39,95 @@ dico_language = {
     'de': 'german',
 }
 
-translators = {
-    'de': pipeline("translation_de_to_en", model="Helsinki-NLP/opus-mt-de-en"),
-    'fr': pipeline("translation_fr_to_en", model="Helsinki-NLP/opus-mt-fr-en")
-}
+# translators = {
+#     'de': pipeline("translation_de_to_en", model="Helsinki-NLP/opus-mt-de-en"),
+#     'fr': pipeline("translation_fr_to_en", model="Helsinki-NLP/opus-mt-fr-en")
+# }
 
-tokenizer_camembert = CamembertTokenizer.from_pretrained("camembert/camembert-large")
-
-
+# tokenizer_camembert = CamembertTokenizer.from_pretrained("camembert/camembert-large")
 
 
-def translate_to_english(text, language):
-    try:
-        if language == 'en':
-            en_text = text
-        elif language in ['fr', 'ge']:
-            en_text = translators[language](text)[0]['translation_text']
-        else:
-            en_text = "Couldn't translate the text to English because it is detected as {}".format(language)
-        return en_text
-    except:
-        return text
+
+# def cut_text_into_small_chunks_bu(text, tokenizer, big_chunk_id, chunk_max_length):
+#     # print('text to cut:', text)
+#     try:
+#         language = detect(str(text))
+#     except:
+#         language = 'unknown'
+#     if language not in ['en', 'fr', 'de']:
+#         sentences = sent_tokenize(str(text))
+#     else:
+#         sentences = sent_tokenize(str(text), language=dico_language.get(language))
+#
+#
+#     #preprocess sentences to cut them if too long
+#     sentences_shortened = []
+#     for i, sentence in enumerate(sentences):
+#         sentence_token_length = len(tokenizer.encode(sentence))
+#         if sentence_token_length > chunk_max_length:
+#             sentence_chunks = [sentence[i:i+chunk_max_length] for i in range(0, len(sentence), chunk_max_length)]
+#             sentences_shortened += sentence_chunks
+#         else:
+#             sentences_shortened.append(sentence)
+#
+#
+#     # create chunks by taking sentences up to the max length
+#     small_chunks = []
+#     current_chunk = ''
+#     current_token_length = 0
+#     for i, sentence in enumerate(sentences_shortened):
+#         sentence_token_length = len(tokenizer.encode(sentence))
+#         current_chunk_plus_sentence_token_length = len(tokenizer.encode(current_chunk + sentence))
+#         # print('current_token_length:', current_token_length)
+#         # print('sentence_token_length:', sentence_token_length)
+#         if current_chunk_plus_sentence_token_length <= chunk_max_length:
+#             current_chunk += sentence
+#             current_token_length += sentence_token_length
+#         else:
+#             small_chunk = SmallChunk(
+#                 big_chunk_id=big_chunk_id,
+#                 chunk_number=i,
+#                 chunk_content=current_chunk,
+#                 language_detected=language,
+#                 en_chunk_content=current_chunk,
+#                 n_token=current_token_length
+#             )
+#             small_chunks.append(small_chunk)
+#             current_chunk = sentence
+#             current_token_length = sentence_token_length
+#
+#
+#     small_chunk = SmallChunk(
+#         big_chunk_id=big_chunk_id,
+#         chunk_number=len(small_chunks),
+#         chunk_content=current_chunk,
+#         language_detected=language,
+#         en_chunk_content=current_chunk,
+#         n_token=current_token_length
+#     )
+#     small_chunks.append(small_chunk)
+#     return small_chunks
+
 
 def cut_text_into_small_chunks(text, tokenizer, big_chunk_id, chunk_max_length):
-    # print('text to cut:', text)
-    try:
-        language = detect(str(text))
-    except:
-        language = 'unknown'
-    if language not in ['en', 'fr', 'de']:
-        sentences = sent_tokenize(str(text))
-    else:
-        sentences = sent_tokenize(str(text), language=dico_language.get(language))
+    tokens = tokenizer.encode(str(text))
 
+    # Split tokens into chunks of max_length
+    token_chunks = [tokens[i:i + chunk_max_length] for i in range(0, len(tokens), chunk_max_length)]
 
-    #preprocess sentences to cut them if too long
-    sentences_shortened = []
-    for i, sentence in enumerate(sentences):
-        sentence_token_length = len(tokenizer.encode(sentence))
-        if sentence_token_length > chunk_max_length:
-            sentence_chunks = [sentence[i:i+chunk_max_length] for i in range(0, len(sentence), chunk_max_length)]
-            sentences_shortened += sentence_chunks
-        else:
-            sentences_shortened.append(sentence)
-
-
-    # create chunks by taking sentences up to the max length
     small_chunks = []
-    current_chunk = ''
-    current_token_length = 0
-    for i, sentence in enumerate(sentences_shortened):
-        sentence_token_length = len(tokenizer.encode(sentence))
-        current_chunk_plus_sentence_token_length = len(tokenizer.encode(current_chunk + sentence))
-        # print('current_token_length:', current_token_length)
-        # print('sentence_token_length:', sentence_token_length)
-        if current_chunk_plus_sentence_token_length <= chunk_max_length:
-            current_chunk += sentence
-            current_token_length += sentence_token_length
-        else:
-            small_chunk = SmallChunk(
-                big_chunk_id=big_chunk_id,
-                chunk_number=i,
-                chunk_content=current_chunk,
-                language_detected=language,
-                en_chunk_content=current_chunk,
-                n_token=current_token_length
-            )
-            small_chunks.append(small_chunk)
-            current_chunk = sentence
-            current_token_length = sentence_token_length
+    for i, token_chunk in enumerate(token_chunks):
+        chunk_text = tokenizer.decode(token_chunk)
+        small_chunk = SmallChunk(
+            big_chunk_id=big_chunk_id,
+            chunk_number=i,
+            chunk_content=chunk_text,
+            language_detected='unknown',  # Simplified language handling
+            en_chunk_content=chunk_text,
+            n_token=len(token_chunk)
+        )
+        small_chunks.append(small_chunk)
 
-
-    small_chunk = SmallChunk(
-        big_chunk_id=big_chunk_id,
-        chunk_number=len(small_chunks),
-        chunk_content=current_chunk,
-        language_detected=language,
-        en_chunk_content=current_chunk,
-        n_token=current_token_length
-    )
-    small_chunks.append(small_chunk)
     return small_chunks
 
 @reconnect_on_failure

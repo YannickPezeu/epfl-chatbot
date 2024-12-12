@@ -65,7 +65,7 @@ metadata:
   name: epfl-chatbot-compose-backend
   namespace: epfl-chatbot
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: epfl-chatbot-compose-backend
@@ -77,6 +77,7 @@ spec:
       containers:
       - name: epfl-chatbot-compose-backend
         image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-backend
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
         env:
@@ -88,11 +89,11 @@ spec:
           requests:
             cpu: "500m"
             memory: "2Gi"
-            ephemeral-storage: "20Gi"
+            ephemeral-storage: "4Gi"
           limits:
             cpu: "2"
             memory: "4Gi"
-            ephemeral-storage: "25Gi"
+            ephemeral-storage: "6Gi"
 
 ---
 # Backend Service
@@ -119,7 +120,7 @@ metadata:
   name: epfl-chatbot-compose-frontend
   namespace: epfl-chatbot
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: epfl-chatbot-compose-frontend
@@ -131,6 +132,7 @@ spec:
       containers:
       - name: epfl-chatbot-compose-frontend
         image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-frontend
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         env:
@@ -189,10 +191,4 @@ spec:
             name: epfl-chatbot-frontend-service-compose
             port:
               number: 80
----
-# Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: epfl-chatbot2
 ---

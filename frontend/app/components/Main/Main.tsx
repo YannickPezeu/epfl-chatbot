@@ -53,14 +53,40 @@ const Main: React.FC<{ extend: boolean; chatOnly?: boolean }> = ({
     setOpenaiKeyStatus,
     conversationID,
     setConversationID,
+    libraries,
+    setLibraries,
+    username,
+    setUsername,
   } = useStore();
+
+  const fetchUsername = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/auth/get-username`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsername(data.username);
+      } else {
+        console.error("Failed to fetch username");
+      }
+    } catch (error) {
+      console.error("Error fetching username:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsername();
+  }, []);
 
   if (chatOnly && selectedLibrary !== "no_library") {
     setSelectedLibrary("no_library");
   }
 
   // const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(false);
-  const [libraries, setLibraries] = useState(["LEX", "RH"]);
+  // const [libraries, setLibraries] = useState(["LEX", "RH"]);
   const [isCreateLibraryModalOpen, setIsCreateLibraryModalOpen] =
     useState(false);
   const [error, setError] = useState("");

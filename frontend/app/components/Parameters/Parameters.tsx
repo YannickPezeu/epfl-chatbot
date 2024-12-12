@@ -18,6 +18,7 @@ import OpenAIKeyUpload from "../OpenAIKeyUpload/OpenAIKeyUpload"; // Adjust the 
 import { Trash2 } from "lucide-react";
 import { RotateCcw } from "lucide-react";
 import { create_ws_connection } from "../../utils";
+import { library } from "@fortawesome/fontawesome-svg-core";
 
 // In your render method or functional component
 const Parameters: React.FC<ParametersProps> = ({
@@ -53,6 +54,8 @@ const Parameters: React.FC<ParametersProps> = ({
     setMessages,
     isInitialLoadComplete,
     selectedLibrary,
+    setSelectedLibrary,
+    libraries,
     nDocumentsSearchedNoLLMDebounced,
     nDocumentsSearchedDebounced,
     setSocket,
@@ -185,6 +188,10 @@ const Parameters: React.FC<ParametersProps> = ({
     setTokensPerInteraction(calculateNumberOfTokens(Number(newNDocuments)));
   };
 
+  const handleLibraryChange = (event: SelectChangeEvent<string>) => {
+    setSelectedLibrary(event.target.value);
+  };
+
   function calculateInteractionPrice(model: string, n_tokens_sent: number) {
     // Implement your calculation logic
     // Example:
@@ -269,7 +276,7 @@ const Parameters: React.FC<ParametersProps> = ({
   return (
     <>
       <Box position="relative" mb={2}>
-        <Grid container spacing={1}>
+        <Grid container spacing={1} sx={{width: '90%'}} >
           <Grid item xs={10} sm={4}>
             <FormControl fullWidth>
               <InputLabel id="model-select-label">LLM</InputLabel>
@@ -316,7 +323,7 @@ const Parameters: React.FC<ParametersProps> = ({
           )}
           {selectedModel != "No_Model" && (
             <>
-              <Grid item xs={10} sm={3} lg={2}>
+              <Grid item xs={10} sm={3}>
                 <TextField
                   fullWidth
                   label="Price per call"
@@ -343,9 +350,29 @@ const Parameters: React.FC<ParametersProps> = ({
             </>
           )}
           {
-            <Grid item xs={10} sm={10} lg={10}>
+            <>
+            <Grid item xs={10} sm={4} lg={4}>
               <OpenAIKeyUpload />
             </Grid>
+            <Grid item xs={10} sm={4}>
+              <FormControl fullWidth>
+                <InputLabel id="library">Library</InputLabel>
+                <Select
+                  labelId="library"
+                  value={selectedLibrary}
+                  label="Library"
+                  onChange={handleLibraryChange}
+                >
+                  {libraries.map(library => (
+                    <MenuItem value={library}>{library}</MenuItem>
+                  ))
+                  }
+
+                  
+                </Select>
+              </FormControl>
+            </Grid>
+            </>
           }
           {extend && (
             <Grid item xs={10} sm={6}>

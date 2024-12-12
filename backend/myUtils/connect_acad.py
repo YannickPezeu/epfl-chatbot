@@ -49,6 +49,9 @@ ssh_config = {
 pool = None
 tunnel = None
 
+print('ssh_config:', ssh_config)
+print('db_config:', db_config)
+
 def setup_ssh_tunnel():
     global tunnel
     if tunnel is None or not tunnel.is_active:

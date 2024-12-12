@@ -92,41 +92,41 @@ def read_docx(file_path, source=None):
         print(f'Error reading docx {source}: {e}')
         return []
 
-import pandas as pd
-
-def read_xlsx(file_path, source= None):
-    '''Returns a list of sheets from the Excel file.
-    Each sheet is represented as a dictionary with two properties: page_content and metadata.
-    Metadata is a dictionary containing two keys: page (indicating the sheet number) and source (indicating the source of the page).
-    '''
-    try:
-        # Load the Excel file
-        xls = pd.ExcelFile(file_path)
-        sheets = xls.sheet_names
-        final_results = []
-        if source is None:
-            source = file_path
-
-        # Iterate through each sheet in the Excel file
-        for i, sheet_name in enumerate(sheets):
-            # Read the sheet
-            sheet_df = pd.read_excel(xls, sheet_name)
-            # Convert the sheet data to a string
-            final_content = sheet_df.to_string()
-            # Append the sheet content and metadata to the results list
-            final_results.append({
-                'page_content': final_content,
-                'metadata': {
-                    'page': str(i + 1),  # Sheet number (1-indexed)
-                    'source': source,
-                    'sheet_name': sheet_name  # Include sheet name in metadata
-                }
-            })
-
-        return final_results
-    except Exception as e:
-        print(f'Error reading xls {file_path}: {e}')
-        return []
+# import pandas as pd
+#
+# def read_xlsx(file_path, source= None):
+#     '''Returns a list of sheets from the Excel file.
+#     Each sheet is represented as a dictionary with two properties: page_content and metadata.
+#     Metadata is a dictionary containing two keys: page (indicating the sheet number) and source (indicating the source of the page).
+#     '''
+#     try:
+#         # Load the Excel file
+#         xls = pd.ExcelFile(file_path)
+#         sheets = xls.sheet_names
+#         final_results = []
+#         if source is None:
+#             source = file_path
+#
+#         # Iterate through each sheet in the Excel file
+#         for i, sheet_name in enumerate(sheets):
+#             # Read the sheet
+#             sheet_df = pd.read_excel(xls, sheet_name)
+#             # Convert the sheet data to a string
+#             final_content = sheet_df.to_string()
+#             # Append the sheet content and metadata to the results list
+#             final_results.append({
+#                 'page_content': final_content,
+#                 'metadata': {
+#                     'page': str(i + 1),  # Sheet number (1-indexed)
+#                     'source': source,
+#                     'sheet_name': sheet_name  # Include sheet name in metadata
+#                 }
+#             })
+#
+#         return final_results
+#     except Exception as e:
+#         print(f'Error reading xls {file_path}: {e}')
+#         return []
 
 def read_docx_pdf(file_path, source=None):
     if file_path.endswith('.docx'):

@@ -26,7 +26,7 @@ const ParametersForm: React.FC<ParametersProps> = ({sx, extend, chatOnly=false})
         onClose={() => setDrawerOpen(false)}
       >
        <Box
-          sx={{ width: 250, padding: 2}}
+          sx={{ width: 550, padding: 2}}
           role="presentation"
         >
           <Parameters extend={extend} chatOnly={chatOnly} />

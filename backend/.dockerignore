@@ -5,5 +5,5 @@ data/
 epfl_hr_scraper/
 .idea/
 temp/
-tests/
+../tests/
 local.db

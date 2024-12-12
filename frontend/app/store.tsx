@@ -64,8 +64,8 @@ interface StoreState {
   BASE_URL_ONLINE_TEST: string;
   BASE_URL_ONLINE_WS_TEST: string;
   BASE_URL_WS_LOCAL:string;
-  selectedLibrary: string | null;
-  setSelectedLibrary: (library: string | null) => void;
+  selectedLibrary: string | undefined;
+  setSelectedLibrary: (library: string | undefined) => void;
   isLoggedIn: boolean;
   setIsLoggedIn: (value: boolean) => void;
   rerank: string;
@@ -84,6 +84,10 @@ interface StoreState {
   setOpenaiKeyStatus: (status: 'missing' | 'invalid' | 'valid') => void;
   conversationID: string;
   setConversationID: (id: string) => void;
+  libraries: string[];
+  setLibraries: (libraries: string[]) => void;
+  username: string;
+  setUsername: (username: string) => void;
 }
 
 
@@ -156,7 +160,7 @@ const useStore = create<StoreState>((set) => ({
     BASE_URL_ONLINE_TEST: '/api',
     BASE_URL_ONLINE: '/api',
     selectedLibrary: 'LEX',
-    setSelectedLibrary: (library: string | null) => set({ selectedLibrary: library }),
+    setSelectedLibrary: (library: string | undefined) => set({ selectedLibrary: library }),
     isLoggedIn: false,
     setIsLoggedIn: (value: boolean) => set({ isLoggedIn: value }),
     rerank: "false",
@@ -175,6 +179,10 @@ const useStore = create<StoreState>((set) => ({
     setOpenaiKeyStatus: (status: 'missing' | 'invalid' | 'valid') => set({ openaiKeyStatus: status }),
     conversationID: "",
     setConversationID: (id: string) => set({ conversationID: id }),
+    libraries: ['LEX', 'RH'],
+    setLibraries: (libraries: string[]) => set({ libraries: libraries }),
+    username: "",
+    setUsername: (username: string) => set({ username: username }),
   }));
   
 export {useStore};

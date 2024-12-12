@@ -24,6 +24,12 @@ from typing import Optional
 
 CIPHER_KEY = os.environ.get('CIPHER_KEY')
 
+@router.get('/get-username')
+def get_username(session_token: str = Cookie(None)):
+    conn, cursor = initialize_all_connection()
+    username = get_username_from_session_token(session_token, conn, cursor)
+    conn.close()
+    return {"username": username}
 
 def set_api_key_status(username, status, conn=None, cursor=None):
     if cursor is None:

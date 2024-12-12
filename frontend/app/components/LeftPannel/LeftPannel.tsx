@@ -10,7 +10,7 @@ interface LeftPanelProps {
   libraries: string[];
   onLibrarySelect: (library: string) => void;
   onCreateNewLibrary: () => void;
-  selectedLibrary: string | null;
+  selectedLibrary: string | undefined;
   onDeleteLibrary: (library: string) => void;
 }
 

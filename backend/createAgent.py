@@ -4,26 +4,30 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.utils.function_calling import convert_to_openai_function
 from langchain_groq import ChatGroq
+from langchain_openai import AzureChatOpenAI, ChatOpenAI  # Changed to Azure-specific import
 from dotenv import load_dotenv
+import os
+import tiktoken
+from typing import List, Tuple, Union
 
+from explorative_ideas.infomaniak_api_test import infomaniak_token
 
 load_dotenv()
-import os
+infomaniak_token = os.getenv('INFOMANIAK_TOKEN2')
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = current_dir
-from langchain.agents import AgentExecutor
 
+from langchain.agents import AgentExecutor
 from langchain.globals import set_debug
 from myUtils.connect_acad import initialize_all_connection
-set_debug(False)
-
-import tiktoken
-
 from searchEngine.search_engines import create_search_engine_tool
 from myUtils.get_prompt import get_prompt, MEMORY_KEY
+from langchain.agents.format_scratchpad import format_to_tool_messages
 
-from langchain_openai import ChatOpenAI
-from typing import List, Tuple, Union
+set_debug(False)
+
+# Database paths setup
 lex_db_path = os.path.realpath(os.path.join(root_dir, 'data/LEXs/LEXs.db'))
 hr_db_path = os.path.realpath(os.path.join(root_dir, 'data/HR/HR.db'))
 
@@ -33,6 +37,12 @@ db_paths = {
 }
 
 tiktoken_encoding = tiktoken.get_encoding("cl100k_base")
+
+from typing import Any, List, Mapping, Optional
+from langchain.llms.base import LLM
+from langchain.callbacks.manager import CallbackManagerForLLMRun
+import requests
+
 
 def convert_db_messages_to_langchain_messages(db_messages: List[Tuple]) -> List[Union[HumanMessage, AIMessage]]:
     """Convert database messages to LangChain message format"""
@@ -48,13 +58,15 @@ def convert_db_messages_to_langchain_messages(db_messages: List[Tuple]) -> List[
 def get_chat_history(conversation_id):
     try:
         conn, cursor = initialize_all_connection()
-        cursor.execute('''SELECT author_type, content, timestamp FROM messages WHERE conversation_id=%s''', (conversation_id,))
+        cursor.execute('''SELECT author_type, content, timestamp FROM messages WHERE conversation_id=%s''',
+                       (conversation_id,))
         messages = cursor.fetchall()
         conn.close()
         return messages
     except Exception as e:
         print('error:', e)
         return []
+
 
 def create_new_conversation(username):
     try:
@@ -69,20 +81,14 @@ def create_new_conversation(username):
         return None
 
 
-
-
-from langchain.agents.format_scratchpad import format_to_tool_messages
-
-
-chat_history = []
-memory = []
-
-
 def get_chat_history_for_agent(conversation_id):
     print('get_chat_history_for_agent:', conversation_id)
-    msgs= get_chat_history(conversation_id)
+    msgs = get_chat_history(conversation_id)
     print('msgs:', msgs)
     return convert_db_messages_to_langchain_messages(msgs)
+
+
+local_azure_key = os.getenv('AZURE_OPENAI_API_KEY')
 
 def createAgent(
         username,
@@ -90,6 +96,7 @@ def createAgent(
         n_documents_searched=1,
         library='LEX',
         openai_key=None,
+        azure_endpoint='https://testpezeu0.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-08-01-preview',
         mistral_key=None,
         embedding_model=None,
         groq_key=None,
@@ -98,8 +105,15 @@ def createAgent(
         special_prompt=None,
         conversation_id=None
 ):
-
     if 'gpt' in model_name:
+        # Modified to use Azure OpenAI
+        # llm = AzureChatOpenAI(
+        #     deployment_name='gpt-4',  # This should match your Azure deployment name
+        #     temperature=0.1,
+        #     azure_endpoint=azure_endpoint,
+        #     api_key=local_azure_key,
+        #     api_version="2024-08-01-preview"  # Update this as needed
+        # )
         llm = ChatOpenAI(
             model=model_name,
             temperature=0.1,
@@ -113,74 +127,80 @@ def createAgent(
 
     tools = [
         create_search_engine_tool(
-        username=username,
-        library=library,
-        model_name=embedding_model,
-        n_results=n_documents_searched,
-        mistral_key=mistral_key,
-        openai_key=openai_key,
-        rerank=rerank
+            username=username,
+            library=library,
+            model_name=embedding_model,
+            n_results=n_documents_searched,
+            mistral_key=mistral_key,
+            openai_key=openai_key,  # Updated to use Azure key
+            rerank=rerank
         )
     ]
     llm_with_tools = llm.bind_tools(tools=tools)
 
-    # add history
+    # Add history
     if conversation_id is not None and conversation_id:
         db_messages = get_chat_history(conversation_id)
         print('db_messages:', db_messages)
         chat_messages = convert_db_messages_to_langchain_messages(db_messages)
-
     else:
         conversation_id = create_new_conversation(username)
         chat_messages = []
 
     print('chat_messages:', chat_messages)
 
-
     if library == 'no_library':
         agent = (
-            RunnablePassthrough.assign(
-                agent_scratchpad=lambda x: format_to_tool_messages(x["intermediate_steps"]),
-                chat_history= RunnableLambda(lambda x: get_chat_history_for_agent(conversation_id))
-            )
+                RunnablePassthrough.assign(
+                    agent_scratchpad=lambda x: format_to_tool_messages(x["intermediate_steps"]),
+                    chat_history=RunnableLambda(lambda x: get_chat_history_for_agent(conversation_id))
+                )
                 | get_prompt('no_library', special_prompt)
                 | llm
                 | ToolsAgentOutputParser()
         )
-
     elif interaction_type in ['chat', 'email']:
         agent = (
-            RunnablePassthrough.assign(
-                agent_scratchpad=lambda x: format_to_tool_messages(x["intermediate_steps"]),
-                chat_history=RunnableLambda(lambda x: get_chat_history_for_agent(conversation_id))
-            )
+                RunnablePassthrough.assign(
+                    agent_scratchpad=lambda x: format_to_tool_messages(x["intermediate_steps"]),
+                    chat_history=RunnableLambda(lambda x: get_chat_history_for_agent(conversation_id))
+                )
                 | get_prompt(interaction_type, special_prompt)
                 | llm_with_tools
                 | ToolsAgentOutputParser()
         )
-
     else:
         raise ValueError('interaction_type must be chat or email')
 
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, return_intermediate_steps=True)
-
-    # print('time-4:', time.time()-start)
     return agent_executor, conversation_id
 
-openai_model_names = ["gpt-4o",
-"gpt-4o-mini"]
+
+# Updated model names to match Azure deployments
+azure_model_names = [
+    "gpt-4o",
+    "gpt-4o-mini"
+]
+
 groq_model_names = [
     'llama3-8b-8192',
     'llama3-70b-8192',
-    'mixtral-8x7b-32768']
-
-
-
-
-
+    'mixtral-8x7b-32768'
+]
 
 if __name__ == '__main__':
     import time
+
     start = time.time()
+
+    # Example usage with Azure OpenAI
+    agent_executor, conv_id = createAgent(
+        username="test_user",
+        model_name="gpt-4o-mini",
+        azure_api_key=os.getenv('AZURE_OPENAI_API_KEY'),
+        azure_endpoint="https://testpezeu0.openai.azure.com/",
+        interaction_type="chat"
+    )
+
     end = time.time()
-    # print('time:', end-start)
+    print('time:', end - start)

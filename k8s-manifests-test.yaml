@@ -1,3 +1,9 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: epfl-chatbot
+---
 # Redis Deployment
 apiVersion: apps/v1
 kind: Deployment
@@ -71,6 +77,7 @@ spec:
       containers:
       - name: epfl-chatbot-compose-backend-test
         image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-backend-test
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
         env:
@@ -82,11 +89,11 @@ spec:
           requests:
             cpu: "500m"
             memory: "2Gi"
-            ephemeral-storage: "20Gi"  # Enough for your image + working files
+            ephemeral-storage: "4Gi"  # Enough for your image + working files
           limits:
             cpu: "2"
             memory: "4Gi"
-            ephemeral-storage: "25Gi"
+            ephemeral-storage: "6Gi"
 
 ---
 # Backend Service
@@ -125,6 +132,7 @@ spec:
       containers:
       - name: epfl-chatbot-compose-frontend-test
         image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-frontend-test
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
         env:
@@ -182,10 +190,4 @@ spec:
             name: epfl-chatbot-frontend-service-compose-test
             port:
               number: 80
----
-# Namespace
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: epfl-chatbot2
 ---

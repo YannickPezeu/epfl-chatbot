@@ -45,7 +45,8 @@ export const ChatLayout = ({
     rerank,
     setOpenaiKeyStatus,
     conversationID,
-    setConversationID
+    setConversationID,
+    username,
   } = useStore();
 
   const modalStyle = {
@@ -79,10 +80,12 @@ export const ChatLayout = ({
     disconnected: "error",
   };
 
+  console.log('username', username);
+
   const buttonText: Record<ConnectionStatus, string> = {
-    connected: "Connected",
-    connecting: "Connecting...",
-    disconnected: "Disconnected",
+    connected: username + " (Connected)",
+    connecting: username + " (Connecting)",
+    disconnected: username + " (Disconnected)",
   };
   return (
     <Box display="flex" flexDirection="column" height="80vh">

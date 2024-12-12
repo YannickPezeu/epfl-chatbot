@@ -2,6 +2,7 @@ import os
 import traceback
 from uuid import uuid4
 
+import httpx
 from fastapi import APIRouter, Cookie, HTTPException, WebSocketDisconnect
 from starlette.websockets import WebSocketState, WebSocket
 
@@ -495,6 +496,46 @@ async def create_new_ws_connection(
         # print('rerank', rerank)
         username = get_username_from_session_token(session_token)
         openai_key, openai_key_status = get_openai_key(username)
+
+        # test openai key
+        try: ask_chatGPT(
+            prompt="This is a test",
+            openai_key=openai_key,
+            max_tokens=5,
+            max_retries=1
+        )
+        except Exception as e:
+            # Create a mock httpx Response object
+            response = httpx.Response(
+                status_code=401,
+                headers={},
+                content=b'{"error": {"message": "Invalid OpenAI API key"}}',
+                request=httpx.Request('GET', 'https://api.openai.com/v1')
+            )
+
+            # update status of openai key
+            conn, cursor = initialize_all_connection()
+            cursor.execute(
+                "UPDATE users SET openai_key_status='invalid' WHERE username=%s",
+                (username,)
+            )
+            conn.commit()
+            conn.close()
+
+            print('updated openai key status to invalid for username', username)
+
+
+
+
+            raise AuthenticationError(
+                message='Invalid OpenAI API key',
+                response=response,
+                body={'error': {'message': 'Invalid OpenAI API key'}}
+            )
+
+
+
+
 
         ws_connection_id = str(uuid4())
         if model_name == 'No_Model':

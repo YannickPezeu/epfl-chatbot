@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 export const connectToWebSocket = async (
   baseUrl: string,
   wsBaseUrl: string,
-  selectedLibrary: string | null,
+  selectedLibrary: string | undefined,
   selectedModel: string,
   nDocumentsSearchedNoLLM: number,
   nDocumentsSearched: number,
@@ -264,7 +264,7 @@ export const connectToWebSocket = async (
 };
 
 export const create_ws_connection = async (
-  selectedLibrary: string | null,
+  selectedLibrary: string | undefined,
   selectedModel: string,
   nDocumentsSearchedNoLLM: number,
   nDocumentsSearched: number,
