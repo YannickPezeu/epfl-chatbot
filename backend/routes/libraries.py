@@ -11,10 +11,24 @@ import os
 
 import sqlite3
 
+
+from library_creation._0_create_big_chunks_from_pdfs import insert_big_chunks_into_db
+from library_creation._1_create_small_chunks_from_big_chunks import insert_small_chunks_into_db
+from library_creation._2_embedd_small_chunks import dtypes_for_models, insert_embeddings_models_into_db, embedd_all_small_chunks
+from library_creation._3_create_faiss_index import create_faiss_index
+
+
+from fastapi import File, UploadFile, Cookie, HTTPException, Request
+from typing import List
+import tempfile
+from fastapi import Form
+
 router = APIRouter(
     prefix="/libraries",
     tags=["libraries"]  # This will group your library endpoints in the FastAPI docs
 )
+
+
 
 @router.delete("/{library_name}")  # RESTful way to delete a resource
 def delete_library(library_name: str, session_token: str = Cookie(None)):
@@ -74,16 +88,6 @@ def insert_user_library(username, library_name, special_prompt=None, cursor=None
     cursor.execute("INSERT IGNORE INTO user_libraries (username, library_name, library_summary, special_prompt) VALUES (%s, %s, %s, %s)", (username, library_name, summary, special_prompt))
 
 
-from library_creation._0_create_big_chunks_from_pdfs import insert_big_chunks_into_db
-from library_creation._1_create_small_chunks_from_big_chunks import insert_small_chunks_into_db
-from library_creation._2_embedd_small_chunks import dtypes_for_models, insert_embeddings_models_into_db, embedd_all_small_chunks
-from library_creation._3_create_faiss_index import create_faiss_index
-
-
-from fastapi import File, UploadFile, Cookie, HTTPException, Request
-from typing import List
-import tempfile
-from fastapi import Form
 
 @router.post("/create")
 @handle_openai_errors
@@ -147,6 +151,7 @@ async def process_library_creation(task_id, username, library_name, temp_file_pa
     # print('Starting library creation process for:', library_name)
 
     redis_state_manager.set_state(task_id, {"status": "Started", "progress": 0})
+    print('set_state', task_id, {"status": "Started", "progress": 0})
     # progress_data[task_id] = {"status": "Started", "progress": 0}
 
     try:
@@ -176,6 +181,7 @@ async def process_library_creation(task_id, username, library_name, temp_file_pa
                 cursor.execute(sql_query, (library_name, username))
                 n_tokens = cursor.fetchone()[0]
                 price = n_tokens *1.3e-7
+                print('price', price)
 
             for model_name, language in zip([model_name], ['fr']):
                 # progress_data[task_id] = {"status": f"Processing model {model_name}", "progress": 70, "price": price}
@@ -214,6 +220,8 @@ async def process_library_creation(task_id, username, library_name, temp_file_pa
         query = "INSERT INTO historic (username, action, detail) VALUES (%s, %s, %s)"
         cursor.execute(query, (username, 'create_library', library_name))
         conn.commit()
+
+        print('finished process_library_creation')
 
         if 'conn' in locals():
             conn.close()

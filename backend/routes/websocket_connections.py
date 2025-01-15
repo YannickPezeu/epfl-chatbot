@@ -226,6 +226,7 @@ def get_chat_history(conversation_id):
 
 @router.websocket("/{ws_connection_id}")
 async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
+    print('ws_connection_id', ws_connection_id)
     await manager.connect(websocket, ws_connection_id)
 
     agent_session = agent_sessions.get(ws_connection_id)
@@ -245,6 +246,8 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                 break
 
             message = await websocket.receive()
+
+            print('message', message)
 
             if message['type'] == 'websocket.disconnect':
                 print(f"Client disconnected from session {ws_connection_id}")
@@ -577,7 +580,8 @@ async def create_new_ws_connection(
                 interaction_type=interaction_type,
                 rerank=rerank,
                 special_prompt=special_prompt,
-                conversation_id=conversation_id
+                conversation_id=conversation_id,
+                use_local_llm=True
                 )
 
 

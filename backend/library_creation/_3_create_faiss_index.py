@@ -76,7 +76,7 @@ def create_faiss_index(library, model_name, language, username, cursor):
     # print('TEST')
 
     embedding_ids = [row[0] for row in cursor.fetchall()]
-    # # print('embedding_ids:', embedding_ids)
+    print('embedding_ids:', embedding_ids)
 
     embeddings = retrieve_embedding_from_db_online(embedding_ids, cursor)
 

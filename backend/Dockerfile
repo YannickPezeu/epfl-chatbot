@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip
 RUN pip install pypdf python-multipart
 RUN pip install -r requirements.txt
+RUN pip install tenacity
 
 # Install pdf2image
 RUN pip install pdf2image

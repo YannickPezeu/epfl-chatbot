@@ -1,5 +1,5 @@
 # Step 1: Build your Next.js application
-FROM node:20.1.0-alpine as builder
+FROM node:20.1.0-alpine AS builder
 WORKDIR /app
 
 # Install Python and build dependencies
@@ -7,7 +7,7 @@ RUN apk add --no-cache python3 make g++
 
 # First copy package files and install dependencies
 COPY package*.json ./
-RUN npm ci  # Using ci instead of install for more reliable builds
+RUN npm ci
 
 # Copy the rest of the application code
 COPY . .
@@ -15,7 +15,7 @@ COPY . .
 # Clear any existing .next directory and build
 RUN rm -rf .next && \
     npm run build && \
-    ls -la .next  # Debug step to verify build output
+    ls -la .next
 
 # Step 2: Serve your Next.js application
 FROM node:20-alpine
@@ -28,7 +28,7 @@ ENV NODE_ENV=production
 USER root
 RUN apk --no-cache add curl wget python3 make g++
 
-# Copy ALL necessary files
+# Copy files from builder stage - Fixed paths to use /app/
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public

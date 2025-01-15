@@ -10,10 +10,8 @@ import os
 import tiktoken
 from typing import List, Tuple, Union
 
-from explorative_ideas.infomaniak_api_test import infomaniak_token
-
 load_dotenv()
-infomaniak_token = os.getenv('INFOMANIAK_TOKEN2')
+
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = current_dir
@@ -90,30 +88,30 @@ def get_chat_history_for_agent(conversation_id):
 
 local_azure_key = os.getenv('AZURE_OPENAI_API_KEY')
 
+from myUtils.localLLM import LocalLLM
+
 def createAgent(
         username,
-        model_name='gpt-4o',
+        model_name='gpt-4',
         n_documents_searched=1,
         library='LEX',
         openai_key=None,
-        azure_endpoint='https://testpezeu0.openai.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2024-08-01-preview',
         mistral_key=None,
         embedding_model=None,
         groq_key=None,
         interaction_type='chat',
         rerank=False,
         special_prompt=None,
-        conversation_id=None
+        conversation_id=None,
+        use_local_llm=False  # New parameter to control LLM choice
 ):
-    if 'gpt' in model_name:
-        # Modified to use Azure OpenAI
-        # llm = AzureChatOpenAI(
-        #     deployment_name='gpt-4',  # This should match your Azure deployment name
-        #     temperature=0.1,
-        #     azure_endpoint=azure_endpoint,
-        #     api_key=local_azure_key,
-        #     api_version="2024-08-01-preview"  # Update this as needed
-        # )
+    if use_local_llm:
+        llm = LocalLLM(
+            base_url="http://host.docker.internal:8001",
+            streaming=True,
+            tool_choice="auto"  # or "any" to force tool usage
+        )
+    elif 'gpt' in model_name:
         llm = ChatOpenAI(
             model=model_name,
             temperature=0.1,
@@ -132,13 +130,13 @@ def createAgent(
             model_name=embedding_model,
             n_results=n_documents_searched,
             mistral_key=mistral_key,
-            openai_key=openai_key,  # Updated to use Azure key
+            openai_key=openai_key,
             rerank=rerank
         )
     ]
     llm_with_tools = llm.bind_tools(tools=tools)
 
-    # Add history
+    # Rest of your code remains the same
     if conversation_id is not None and conversation_id:
         db_messages = get_chat_history(conversation_id)
         print('db_messages:', db_messages)
@@ -197,8 +195,6 @@ if __name__ == '__main__':
     agent_executor, conv_id = createAgent(
         username="test_user",
         model_name="gpt-4o-mini",
-        azure_api_key=os.getenv('AZURE_OPENAI_API_KEY'),
-        azure_endpoint="https://testpezeu0.openai.azure.com/",
         interaction_type="chat"
     )
 

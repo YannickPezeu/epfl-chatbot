@@ -10,6 +10,7 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      - /app/.next  # Add this to preserve the .next directory
     environment:
       - NEXT_PUBLIC_BACKEND_URL=http://backend:8000
     depends_on:
@@ -26,18 +27,18 @@ services:
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
-      - REDIS_HOST=redis  # Add Redis connection details
+      - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
-      - redis  # Make sure Redis starts before backend
+      - redis
 
   redis:
     image: redis:7.2-alpine
     ports:
-      - "6379:6379"  # Exposed for local development/debugging
+      - "6379:6379"
     volumes:
-      - redis-data:/data  # Persist Redis data
-    command: redis-server --appendonly yes  # Enable data persistence
+      - redis-data:/data
+    command: redis-server --appendonly yes
 
 volumes:
-  redis-data:  # Define the volume for Redis persistence
+  redis-data:

@@ -160,7 +160,17 @@ export const ChatLayout = ({
               recherche pour lui fournir des informations venant de notre base
               de donnée.{" "}
             </p>
-            <br />
+            <p>
+              <Link href="https://youtu.be/xbpLh9Ebvnc" target="_blank">
+                Vidéo de présentation:
+              </Link>{" "}
+              <br />
+              <Link href="https://youtu.be/q6JoNiMLOZ0" target="_blank">
+                Vidéo tutorielle pour créer une clé API OpenAI:
+              </Link>{" "}
+            </p>
+
+
             <p>
               <b>Utilisation sans LLM:</b> choisir &quot;No Model&quot; dans la
               case LLM <br /> Vous utiliserez alors seulement le moteur de
