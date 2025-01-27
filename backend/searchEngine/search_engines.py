@@ -263,8 +263,11 @@ def search_engine_for_llm(username, library, question, n_results=1,
 def create_search_engine_tool(username, library, model_name, n_results=1, mistral_key=None, openai_key=None, rerank=False):
     @tool
     def search_engine_tool(question, n_results=n_results,
-                           mistral_key=mistral_key, openai_key=openai_key, rerank=rerank):
-        '''Moteur de recherche en français pour les documents législatifs de l'EPFL
+                           # mistral_key=mistral_key,
+                           # openai_key=openai_key,
+                           # rerank=rerank
+                           ):
+        '''Moteur de recherche en français pour tout type de documents
                         args: question (str): Une question comme vous le demanderiez à un collègue
                         n_results (int): nombre de résultats à renvoyer
                         returns: result (str): les elements les plus pertinents pour répondre à la question ainsi que les sources.
