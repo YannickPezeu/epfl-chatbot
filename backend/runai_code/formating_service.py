@@ -39,43 +39,50 @@ class ChatCompletionRequest(BaseModel):
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
 
 
-def get_model_type(model_path: str) -> str:
-    """Determine if the model is Llama or Mistral based on the path."""
-    model_path = model_path.lower()
-    if "llama" in model_path:
-        return "llama"
-    elif "mistral" in model_path:
-        return "mistral"
-    else:
+print('LLM_SERVCICE_URL', LLM_SERVICE_URL.split('generate')[0])
+print(f"{LLM_SERVICE_URL.split('generate')[0]}model_type")
+
+
+def get_model_type() -> str:
+    """Get model type from LLM service."""
+
+    try:
+        import requests
+        response = requests.get(f"{LLM_SERVICE_URL.split('generate')[0]}model_type")
+        if response.status_code == 200:
+            return response.json()["type"]
+        else:
+            print(f"Error getting model type: {response.status_code}")
+            return "auto"
+    except Exception as e:
+        print(f"Error querying model type: {e}")
         return "auto"
 
 
-def format_messages(messages: List[Message], model_type: str) -> str:
+model_type = get_model_type()
+print('model_type', model_type)
+
+
+def format_messages(messages: List[Message], model_type: str, use_tool: bool) -> str:
     """Format messages based on model type."""
     if model_type == "mistral":
         prompt = ""
-        conversation_start = True
 
-        for message in messages:
-            if conversation_start:
-                prompt += "<s>"
-                conversation_start = False
-
-            if message.role in ["user", "human"]:
-                prompt += f"[INST] {message.content} [/INST]"
+        for i, message in enumerate(messages):
+            if message.role == "system":
+                # For Mistral, system message should be included in first user message
+                continue
+            elif message.role in ["user", "human"]:
+                prefix = "[INST]"
+                if i == 0 and any(m.role == "system" for m in messages):
+                    # Add system message to first user message
+                    system_msg = next((m.content for m in messages if m.role == "system"), "")
+                    prefix = f"[INST] {system_msg}\n\n"
+                prompt += f"{prefix} {message.content} [/INST]"
             elif message.role == "assistant":
                 prompt += f"{message.content}"
-                if not any(m.role in ["user", "human"] for m in messages[messages.index(message) + 1:]):
-                    prompt += "</s>"
-                    conversation_start = True
-            elif message.role == "system":
-                if len(prompt) == 0:
-                    prompt = f"<s>[INST] {message.content}\n"
             elif message.role == "tool":
                 prompt += f"\nTool {message.name} returned: {message.content}\n"
-
-        if not prompt.endswith("</s>"):
-            prompt += "</s>"
 
         return prompt
 
@@ -112,9 +119,12 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
 
     conversation = ''
     for msg in messages:
+        print('msg_role', msg.role)
+        if msg.role == 'tool':
+            return False
+        if msg.role == 'system':
+            continue
         conversation += f"{msg.role}:{msg.content}\n"
-
-    last_user_message = next((msg.content for msg in reversed(messages) if msg.role == "user"), "")
 
     tool_descriptions = [
         f"{tool.function['name']}: {tool.function['description']}"
@@ -122,10 +132,15 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
     ]
     tools_text = "\n".join(tool_descriptions)
 
-    decision_prompt = f"<s>[INST]Tu es en charge de décider si l'on va utiliser un outil pour répondre à la question de l'utilisateur, si tu as un doute, utilise l'outil, il vaut mieux l'utiliser trop que pas assez. Mais si c'est clair qu'il n'y a pas besoin, par exemple si l'utilisateur dit juste bonjour, ne l'utilise pas. tu répond oui pour utiliser l'outil et non pour ne pas l'utiliser. Tu as accès aux outils suivants:\n{tools_text}\n\nPour la question: \"{last_user_message}\"\n dans le contexte {conversation}\n\nRéponds seulement par Oui ou Non: As-tu besoin d'utiliser un outil pour répondre à cette question ? [/INST]"
+    if model_type == 'mistral':
+        decision_prompt = f"[INST] You need to decide if a tool should be used to answer the user's question. If in doubt, use the tool - it's better to use it too much than not enough. But if it's clearly not needed, like if the user just says hello, don't use it. Answer only with 'yes' or 'no', nothing else: Do you need to use a tool to answer this question? [/INST]"
+        decision_prompt = conversation + decision_prompt
+    else:
+        decision_prompt = f"<s>[INST]Basé sur la discussion précédente: Tu es en charge de décider si l'on va utiliser un outil pour répondre à la question de l'utilisateur, si tu as un doute, utilise l'outil, il vaut mieux l'utiliser trop que pas assez. Mais si c'est clair qu'il n'y a pas besoin, par exemple si l'utilisateur dit juste bonjour, ne l'utilise pas. tu répond seulement par 'oui' ou 'non', rien d'autre: As-tu besoin d'utiliser un outil pour répondre à cette question ? [/INST]"
+        decision_prompt = conversation + decision_prompt
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        try:
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 LLM_SERVICE_URL,
                 json={
@@ -133,25 +148,44 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
                     "sampling_params": {
                         "temperature": 0.1,
                         "max_tokens": 10,
-                        "stop": ["</s>", "[INST]"]
+                        "stop": ["</s>", "[INST]"],
+                        "top_p": 0.9,
+                        "frequency_penalty": 0.1
                     },
                     "request_id": f"decision_{int(time.time())}"
                 }
             )
 
-            if response.status_code == 200:
-                result = response.json()
-                response_text = result["text"].strip().lower()
-                return "oui" in response_text or "yes" in response_text
-            else:
-                print(f"Error in tool decision: {response.text}")
+            if response.status_code != 200:
+                print(f"Error in tool decision: Status {response.status_code}")
                 return False
-        except httpx.TimeoutError:
-            print("Timeout while connecting to LLM service")
-            return False
-        except Exception as e:
-            print(f"Error connecting to LLM service: {e}")
-            return False
+
+            # Process the streaming response
+            complete_response = ""
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    try:
+                        data = line.removeprefix("data: ")
+                        if data == "[DONE]":
+                            continue
+
+                        chunk_data = json.loads(data)
+                        if isinstance(chunk_data, dict) and "text" in chunk_data:
+                            complete_response += chunk_data["text"]
+                    except json.JSONDecodeError:
+                        continue
+
+            # Clean up and check the complete response
+            complete_response = complete_response.lower().strip()
+            print(f"Complete response: {complete_response}")  # For debugging
+            return "oui" in complete_response or "yes" in complete_response
+
+    except httpx.RequestError as e:
+        print(f"Request error in tool decision: {e}")
+        return False
+    except Exception as e:
+        print(f"Unexpected error in tool decision: {e}")
+        return False
 
 
 async def generate_tool_query(request_id: str, user_messages: List[Message], tools: List[Tool]) -> tuple[str, str]:
@@ -168,8 +202,6 @@ async def generate_tool_query(request_id: str, user_messages: List[Message], too
 
     tool_names = [tool.function['name'] for tool in tools]
     tool_names_str = ", ".join(tool_names)
-
-    model_type = get_model_type("llama")  # You might want to make this configurable
 
     if model_type == "mistral":
         prompt = f"""<s>[INST] Tu as accès aux outils suivants:
@@ -210,15 +242,31 @@ QUERY: <your_query> [/INST]"""
                 "sampling_params": {
                     "temperature": 0.1,
                     "max_tokens": 200,
-                    "stop": ["</s>", "[INST]"]
+                    "stop": ["</s>", "[INST]", "[/INST]"]
                 },
                 "request_id": f"tool_query_{request_id}"
             }
         )
 
         if response.status_code == 200:
-            result = response.json()
-            response_text = result["text"].strip()
+            print('raw response', response)
+            # result = response.json()
+            # response_text = result["text"].strip()
+
+            complete_response = ""
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    data = line.removeprefix("data: ")
+                    if data == "[DONE]":
+                        continue
+                    try:
+                        chunk_data = json.loads(data)
+                        if isinstance(chunk_data, dict) and "text" in chunk_data:
+                            complete_response += chunk_data["text"]
+                    except json.JSONDecodeError:
+                        continue
+
+            response_text = complete_response.strip()
 
             tool_match = re.search(r"TOOL:\s*(\w+)", response_text)
             query_match = re.search(r"QUERY:\s*(.+)", response_text, re.DOTALL)
@@ -401,6 +449,7 @@ async def generate_tool_stream(request_id: str, messages: List[Message], tools: 
 
 @app.post("/v1/chat/completions")
 async def chat_completion(request: ChatCompletionRequest):
+    print('request', request, '\n-' * 100)
     print("\n=== Starting new chat completion request ===")
     print(f"Messages: {json.dumps([msg.dict() for msg in request.messages], indent=2)}")
     print(f"Tools available: {bool(request.tools)}")
@@ -409,7 +458,6 @@ async def chat_completion(request: ChatCompletionRequest):
     print(f"Decision to use tool: {use_tool}")
 
     request_id = f"req_{int(time.time())}"
-    model_type = get_model_type(request.model)
 
     if use_tool:
         print("Using tool for conversation")
@@ -418,7 +466,7 @@ async def chat_completion(request: ChatCompletionRequest):
             media_type="text/event-stream"
         )
     else:
-        prompt = format_messages(request.messages, model_type)
+        prompt = format_messages(request.messages, model_type, use_tool)
         print(f"Using normal conversation for prompt: {prompt}")
 
         sampling_params = {
