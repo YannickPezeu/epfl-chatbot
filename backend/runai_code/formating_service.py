@@ -472,11 +472,12 @@ async def chat_completion(request: ChatCompletionRequest):
         sampling_params = {
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
-            "top_p": 0.9,
-            "presence_penalty": 0.6,
-            "frequency_penalty": 0.6,
+            "top_p": 1,
+            "presence_penalty": 0,
+            "frequency_penalty": 0,
             "stop": ["</s>", "[INST]"]
         }
+        print('sampling_params', sampling_params)
 
         return StreamingResponse(
             generate_normal_stream(prompt, request_id, sampling_params),
