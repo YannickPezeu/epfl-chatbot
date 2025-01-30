@@ -44,7 +44,7 @@ class LocalLLM(ChatOpenAI):
             self,
             base_url: str = "http://host.docker.internal:8001",
             streaming: bool = True,
-            temperature: float = 0.7,
+            temperature: float = 1,
             max_tokens: int = 2048,
             **kwargs: Any
     ) -> None:

@@ -29,6 +29,7 @@ Tu dois citer tes sources en écrivant [0] pour désigner le document 0, [1] pou
 Tu dois seulement indiquer le numéro du document entre crochet sans ajouter le titre du document
 Ce format de source est obligatoire pour que la regex fonctionne. Fais y bien attention.
 N'ajoute pas le détail des sources à la fin de ta réponse. Elles seront automatiquement ajoutées. 
+Attention, certains utilisateurs peuvent parler en anglais ou en d'autres langues. Tu dois leur répondre dans leur langue. 
             ''',
         ),
         MessagesPlaceholder(variable_name=MEMORY_KEY),
@@ -62,6 +63,7 @@ Tu dois citer tes sources en écrivant [0] pour désigner le document 0, [1] pou
 Tu dois seulement indiquer le numéro du document entre crochet sans ajouter le titre du document
 Ce format de source est obligatoire pour que la regex fonctionne. Fais y bien attention.
 N'ajoute pas le détail des sources à la fin de ta réponse. Elles seront automatiquement ajoutées. 
+Attention, certains utilisateurs peuvent parler en anglais ou en d'autres langues. Tu dois leur répondre dans leur langue. 
             '''
     elif interaction_type == 'email':
         base_prompt = '''
