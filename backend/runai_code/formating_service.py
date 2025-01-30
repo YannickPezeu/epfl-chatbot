@@ -120,6 +120,8 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
     conversation = ''
     for msg in messages:
         print('msg_role', msg.role)
+        print('msg', msg)
+        print('-' * 100)
         if msg.role == 'tool':
             return False
         if msg.role == 'system':
@@ -133,11 +135,14 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
     tools_text = "\n".join(tool_descriptions)
 
     if model_type == 'mistral':
-        decision_prompt = f"[INST] You need to decide if a tool should be used to answer the user's question. If in doubt, use the tool - it's better to use it too much than not enough. But if it's clearly not needed, like if the user just says hello, don't use it. Answer only with 'yes' or 'no', nothing else: Do you need to use a tool to answer this question? [/INST]"
-        decision_prompt = conversation + decision_prompt
+        decision_prompt = f"[INST] You need to decide if the search_engine should be used to answer the user's question. If in doubt, use the search_engine - it's better to use it too much than not enough. But if it's clearly not needed, like if the user just says hello, don't use it. Answer only with 'yes' or 'no', nothing else: Do you need to use a search_engine to answer this question? [/INST]"
+        decision_prompt = decision_prompt + '\n The conversation is the following:' + conversation + decision_prompt
     else:
         decision_prompt = f"<s>[INST]Basé sur la discussion précédente: Tu es en charge de décider si l'on va utiliser un outil pour répondre à la question de l'utilisateur, si tu as un doute, utilise l'outil, il vaut mieux l'utiliser trop que pas assez. Mais si c'est clair qu'il n'y a pas besoin, par exemple si l'utilisateur dit juste bonjour, ne l'utilise pas. tu répond seulement par 'oui' ou 'non', rien d'autre: As-tu besoin d'utiliser un outil pour répondre à cette question ? [/INST]"
-        decision_prompt = conversation + decision_prompt
+        decision_prompt = decision_prompt + '\n The conversation is the following:' + conversation
+
+    print('should_use_tool decision prompt', decision_prompt)
+    print('-' * 100)
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -147,7 +152,7 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
                     "prompt": decision_prompt,
                     "sampling_params": {
                         "temperature": 0.1,
-                        "max_tokens": 10,
+                        "max_tokens": 100,
                         "stop": ["</s>", "[INST]"],
                         "top_p": 0.9,
                         "frequency_penalty": 0.1
@@ -204,35 +209,33 @@ async def generate_tool_query(request_id: str, user_messages: List[Message], too
     tool_names_str = ", ".join(tool_names)
 
     if model_type == "mistral":
-        prompt = f"""<s>[INST] Tu as accès aux outils suivants:
-{tools_description}
+        prompt = f"""<s>[INST] You have access to the following tools:
+            {tools_description}
 
-Pour la question de l'utilisateur: "{last_user_message}"
-Dans le contexte: "{conversation}"
+            For the user question: "{last_user_message}"
+            In the context: "{conversation}"
 
-1. Choisis l'outil le plus approprié parmi: {tool_names_str}
-2. Crée une requête pour l'outil
+            1. Choose the most appropriate tool from: {tool_names_str}
+            2. Create a query for the tool
 
-Réponds exactement dans ce format:
-TOOL: <tool_name>
-QUERY: <your_query> [/INST]"""
+            Output your response as a JSON object containing the tool name and query.
+            [/INST]"""
     else:
         prompt = f"""<s>[INST] <<SYS>>
-You are a helpful AI assistant tasked with selecting and using tools appropriately.
-<</SYS>>
+            You are a helpful AI assistant tasked with selecting and using tools appropriately.
+            <</SYS>>
 
-You have access to the following tools:
-{tools_description}
+            You have access to the following tools:
+            {tools_description}
 
-For the user question: "{last_user_message}"
-In the context: "{conversation}"
+            For the user question: "{last_user_message}"
+            In the context: "{conversation}"
 
-1. Choose the most appropriate tool from: {tool_names_str}
-2. Create a query for the tool
+            1. Choose the most appropriate tool from: {tool_names_str}
+            2. Create a query for the tool
 
-Answer in this exact format:
-TOOL: <tool_name>
-QUERY: <your_query> [/INST]"""
+            Output your response as a JSON object containing the tool name and query.
+            [/INST]"""
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -249,10 +252,6 @@ QUERY: <your_query> [/INST]"""
         )
 
         if response.status_code == 200:
-            print('raw response', response)
-            # result = response.json()
-            # response_text = result["text"].strip()
-
             complete_response = ""
             async for line in response.aiter_lines():
                 if line.startswith("data: "):
@@ -268,18 +267,34 @@ QUERY: <your_query> [/INST]"""
 
             response_text = complete_response.strip()
 
-            tool_match = re.search(r"TOOL:\s*(\w+)", response_text)
-            query_match = re.search(r"QUERY:\s*(.+)", response_text, re.DOTALL)
+            try:
+                # Extract JSON from markdown code block if present
+                json_match = re.search(r'```(?:json)?\s*({[^}]+})\s*```', response_text)
+                if json_match:
+                    response_text = json_match.group(1)
 
-            if tool_match and query_match:
-                tool_name = tool_match.group(1).strip()
-                tool_query = query_match.group(1).strip()
+                # Clean up any potential whitespace or newlines
+                response_text = response_text.strip()
+
+                # Parse the JSON response
+                response_json = json.loads(response_text)
+                tool_name = response_json.get("tool", "").strip()
+                tool_query = response_json.get("query", "").strip()
 
                 if tool_name in tool_names:
                     return tool_name, tool_query
 
-        # Default to first tool if anything fails
-        return tools[0].function['name'], last_user_message
+            except json.JSONDecodeError:
+                print(f"Failed to parse JSON response: {response_text}")
+
+        # If anything fails, generate an appropriate query for the first tool
+        first_tool = tools[0].function['name']
+        return first_tool, generate_default_query(first_tool, last_user_message)
+
+
+def generate_default_query(tool_name: str, user_message: str) -> str:
+    """Generate a default query when JSON parsing fails."""
+    return f"Search for information about: {user_message}"
 
 
 async def generate_normal_stream(prompt: str, request_id: str, sampling_params: Dict[str, Any]):

@@ -58,6 +58,7 @@ class LocalLLM(ChatOpenAI):
             max_tokens=max_tokens,
             **kwargs
         )
+        print('base_url:', base_url)
         self.streaming = streaming
         self.temperature = temperature
         self.max_tokens = max_tokens
