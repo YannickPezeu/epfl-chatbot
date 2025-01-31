@@ -1,3 +1,5 @@
+import traceback
+
 from langchain_openai.chat_models.base import ChatOpenAI
 from langchain.callbacks.manager import CallbackManagerForLLMRun, AsyncCallbackManagerForLLMRun
 from langchain_core.messages import (
@@ -44,7 +46,7 @@ class LocalLLM(ChatOpenAI):
             self,
             base_url: str = "http://host.docker.internal:8001",
             streaming: bool = True,
-            temperature: float = 1,
+            temperature: float = 0.15,
             max_tokens: int = 2048,
             **kwargs: Any
     ) -> None:
@@ -228,7 +230,9 @@ class LocalLLM(ChatOpenAI):
                     json={**params, "messages": message_dicts}
             ) as response:
                 async for line in response.content:
-                    if not line or line == b"data: [DONE]":
+                    print('line:', line)
+
+                    if not line or line == b"data: [DONE]\n":
                         continue
 
                     line = line.decode('utf-8').strip()
@@ -253,7 +257,8 @@ class LocalLLM(ChatOpenAI):
                             yield chunk
 
                     except Exception as e:
-                        logger.error(f"Error in stream processing: {str(e)}")
+                        print('the buggy line was:', line)
+                        logger.error(f"Error in stream processing: {str(e)}, {traceback.format_exc()}")
                         continue
 
     def _create_chat_generation_chunk(

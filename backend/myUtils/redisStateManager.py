@@ -24,13 +24,13 @@ class AgentSession:
         self.conversation_id = conversation_id
 
 class RedisStateManager:
-    def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0):
+    def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0, decode_responses: bool = True):
         """Initialize Redis connection"""
         self.redis_client = Redis(
             host=os.getenv('REDIS_HOST', 'localhost'),
             port=int(os.getenv('REDIS_PORT', 6379)),
             db=int(os.getenv('REDIS_DB', 0)),
-            decode_responses=True
+            decode_responses=decode_responses
         )
 
     def set_state(self, key: str, value: Any, expiry: Optional[int] = None) -> bool:

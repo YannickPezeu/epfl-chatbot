@@ -1,5 +1,7 @@
 import json
 import os
+import time
+
 # import sqlite3
 # import time
 #
@@ -67,7 +69,7 @@ def search_engine(
         openai_key=None,
         rerank=False,
 ):
-
+    start = time.time()
     language = 'fr'
 
     # Connect to database
@@ -88,8 +90,11 @@ def search_engine(
     print('language', language)
     print('library', library)
 
+    print('time to get embeddings:', time.time()-start)
+
     index, embedding_ids = retrieve_faiss_index(model_name, language, library, username, cursor=cursor)
 
+    print('time to retrieve faiss index:', time.time()-start)
     # Search in faiss index
     D, I = index.search(text_embedding, 30)
 
@@ -120,8 +125,11 @@ def search_engine(
         raise
 
     fetched_data = cursor.fetchall()
+    print('time to fetch data:', time.time()-start)
     id_to_small_chunk_id = {id: small_chunk_id for id, small_chunk_id in fetched_data}
     small_chunk_ids = [id_to_small_chunk_id[id] for id in embedding_ids if id in id_to_small_chunk_id]
+
+    print('time to get small chunk ids:', time.time()-start)
 
     try:
         if not small_chunk_ids:
@@ -140,6 +148,7 @@ def search_engine(
     # c.execute("SELECT * FROM small_chunks WHERE id IN ({})".format(','.join(['%s']*len(small_chunk_ids))), small_chunk_ids)
     small_chunks = cursor.fetchall()
 
+    print('time to fetch small chunks:', time.time()-start)
     # Create a dictionary to map small_chunk_ids to small_chunks and reorder
     id_to_small_chunk = {sc[0]: sc for sc in small_chunks}
     small_chunks = [id_to_small_chunk[id] for id in small_chunk_ids if id in id_to_small_chunk]
@@ -154,16 +163,22 @@ def search_engine(
             if len(filtered_small_chunks) >= 50:
                 break
 
+    print('time to filter small chunks:', time.time()-start)
+
     big_chunk_ids = list(seen_big_chunk_ids)
     cursor.execute("SELECT id, pdf_id, page_number, three_page_content, page_content  FROM big_chunks WHERE id IN ({})".format(','.join(['%s']*len(big_chunk_ids))), big_chunk_ids)
     big_chunks = cursor.fetchall()
     big_chunk_map = {bc[0]: bc for bc in big_chunks}
+
+    print('time to fetch big chunks:', time.time()-start)
 
     pdf_ids = [bc[1] for bc in big_chunks if bc[0] in big_chunk_map]
     # print('pdf_ids:', pdf_ids)
     cursor.execute("SELECT id, url, title FROM pdfs WHERE id IN ({})".format(','.join(['%s']*len(pdf_ids))), pdf_ids)
     pdfs = cursor.fetchall()
     pdf_map = {pdf[0]: pdf for pdf in pdfs}
+
+    print('time to fetch pdfs:', time.time()-start)
 
     conn.close()
 
@@ -187,6 +202,8 @@ def search_engine(
             'pdf_id': pdf[0],
             'document_index': i
         })
+
+    print('time to construct results:', time.time()-start)
 
     # # Rerank results
     # if rerank:

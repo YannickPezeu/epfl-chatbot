@@ -1,5 +1,6 @@
 import math
 import sqlite3
+import time
 
 import numpy as np
 
@@ -9,6 +10,7 @@ import faiss
 import json
 import tempfile
 import os
+from myUtils.redisStateManager import RedisStateManager
 
 
 def split_file(file_path, chunk_size=20 * 1024 * 1024):  # 20MB in bytes
@@ -44,7 +46,16 @@ def init_local_db():
         PRIMARY KEY (model_id, library, username)
     )
     ''')
+    cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_faiss_lookup 
+            ON faiss_index(model_id, library, username)
+        ''')
     conn.commit()
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA cache_size=-2000000')  # 2GB cache
+    conn.execute('PRAGMA synchronous=NORMAL')
+    conn.execute('PRAGMA temp_store=MEMORY')
+    conn.execute('PRAGMA mmap_size=30000000000')  # 30GB memory map
     return conn, cursor
 
 
@@ -146,36 +157,42 @@ def create_faiss_index(library, model_name, language, username, cursor):
     return myIndex
 
 
-
-
 @reconnect_on_failure
 def retrieve_faiss_index(model_name, language, library, username, cursor):
-    # print('retrieve_faiss_index, model_name:', model_name, 'language:', language, 'library:', library, 'username:', username)
     # Get the model_id
+    s = time.time()
     cursor.execute("SELECT id FROM embeddings_models WHERE model_name=%s AND language=%s", (model_name, language))
     model_id = cursor.fetchone()[0]
+    print('time to get model_id:', time.time() - s)
 
-    # First, try to retrieve from local SQLite DB
-    local_conn, local_cursor = init_local_db()
-    local_cursor.execute('''
-        SELECT index_data, embedding_ids FROM faiss_index
-        WHERE model_id=? AND library=? AND (username=? OR username='all_users')
-        ''', (model_id, library, username))
-    local_result = local_cursor.fetchone()
+    # Initialize Redis managers for different data types
+    string_redis = RedisStateManager(decode_responses=True)  # For JSON/string data
+    binary_redis = RedisStateManager(decode_responses=False)  # For binary data
 
-    if local_result:
-        index_bytes, embedding_ids_json = local_result
+    # Create keys for faiss index and embeddings
+    index_key = f"faiss:index:{model_id}:{library}:{username}"
+    embedding_key = f"faiss:embeddings:{model_id}:{library}:{username}"
+
+    # Try user-specific index first
+    index_bytes = binary_redis.redis_client.get(index_key)
+    embedding_ids_json = string_redis.redis_client.get(embedding_key)
+
+    # If not found, try all_users
+    if index_bytes is None:
+        all_users_index_key = f"faiss:index:{model_id}:{library}:all_users"
+        all_users_embedding_key = f"faiss:embeddings:{model_id}:{library}:all_users"
+        index_bytes = binary_redis.redis_client.get(all_users_index_key)
+        embedding_ids_json = string_redis.redis_client.get(all_users_embedding_key)
+
+    if index_bytes and embedding_ids_json:
+        print('getting faiss index from redis')
         index_array = np.frombuffer(index_bytes, dtype=np.uint8)
         index = faiss.deserialize_index(index_array)
         embedding_ids = json.loads(embedding_ids_json)
-        local_conn.close()
-        # print("FAISS index loaded from local SQLite database")
         return index, embedding_ids
 
-    # If not found in local SQLite DB, retrieve from MySQL DB
-    # print("FAISS index not found in local SQLite database. Retrieving from MySQL database")
-
-    # Retrieve the metadata
+    # If not in Redis, retrieve from MySQL DB
+    print('getting faiss index from online db')
     cursor.execute("""
     SELECT embedding_ids 
     FROM faiss_index_metadata 
@@ -184,7 +201,6 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
 
     result = cursor.fetchone()
     if result is None:
-        # print(f"No index found for model_id {model_id} and library {library} and username {username}")
         return None
 
     embedding_ids_json = result[0]
@@ -198,37 +214,28 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
     """, (model_id, library, username))
 
     parts = cursor.fetchall()
-
-    # Combine all parts
     combined_index = b''.join(part[1] for part in parts)
 
-    # Create a temporary file to store the combined index
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         temp_file.write(combined_index)
         temp_file_path = temp_file.name
 
-    # Load the index from the temporary file
     index = faiss.read_index(temp_file_path)
-
-    # Remove the temporary file
     os.unlink(temp_file_path)
 
-    # Parse the embedding_ids JSON
     embedding_ids = json.loads(embedding_ids_json)
 
-    # Store in local SQLite DB for future use
+    # Store in Redis for future use
+    print('storing faiss index in redis')
     index_bytes = faiss.serialize_index(index)
-    local_cursor.execute('''
-        INSERT OR REPLACE INTO faiss_index (model_id, library, username, index_data, embedding_ids)
-        VALUES (?, ?, ?, ?, ?)
-        ''', (model_id, library, username, index_bytes, embedding_ids_json))
-    local_conn.commit()
-    local_conn.close()
+    binary_redis.redis_client.set(index_key, index_bytes)
+    string_redis.redis_client.set(embedding_key, embedding_ids_json)
 
-    # print("FAISS index loaded from online DB and stored in local SQLite database")
+    # Set expiry time
+    binary_redis.redis_client.expire(index_key, 4 * 3600)
+    string_redis.redis_client.expire(embedding_key, 4 * 3600)
 
     return index, embedding_ids
-
 
 
 if __name__ == '__main__':

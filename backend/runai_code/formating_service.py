@@ -63,7 +63,7 @@ model_type = get_model_type()
 print('model_type', model_type)
 
 
-def format_messages(messages: List[Message], model_type: str, use_tool: bool) -> str:
+def format_messages(messages: List[Message], model_type: str, use_tool: bool, skip_system_msg: bool = False) -> str:
     """Format messages based on model type."""
     if model_type == "mistral":
         prompt = ""
@@ -114,13 +114,14 @@ def format_messages(messages: List[Message], model_type: str, use_tool: bool) ->
 
 
 async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] = None) -> bool:
+    print('start should use tool')
     if not tools:
         return False
 
     conversation = ''
     for msg in messages:
         print('msg_role', msg.role)
-        print('msg', msg)
+        print('msg', msg.content[:50] + ' ... ' + msg.content[-50:])
         print('-' * 100)
         if msg.role == 'tool':
             return False
@@ -183,6 +184,7 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
             # Clean up and check the complete response
             complete_response = complete_response.lower().strip()
             print(f"Complete response: {complete_response}")  # For debugging
+            print('end should use tool')
             return "oui" in complete_response or "yes" in complete_response
 
     except httpx.RequestError as e:
@@ -196,6 +198,8 @@ async def should_use_tool(messages: List[Message], tools: Optional[List[Tool]] =
 async def generate_tool_query(request_id: str, user_messages: List[Message], tools: List[Tool]) -> tuple[str, str]:
     conversation = ''
     for msg in user_messages:
+        if msg.role in ['system', 'tool']:
+            continue
         conversation += f"{msg.role}:{msg.content}\n"
 
     last_user_message = next((msg.content for msg in reversed(user_messages) if msg.role == "user"), "")
@@ -464,10 +468,29 @@ async def generate_tool_stream(request_id: str, messages: List[Message], tools: 
 
 @app.post("/v1/chat/completions")
 async def chat_completion(request: ChatCompletionRequest):
-    print('request', request, '\n-' * 100)
     print("\n=== Starting new chat completion request ===")
-    print(f"Messages: {json.dumps([msg.dict() for msg in request.messages], indent=2)}")
+    msgs = request.messages
+    for msg in request.messages:
+        if msg.role == 'tool':
+            dico_tool_result = json.loads(msg.content)
+            msg.content = json.dumps(dico_tool_result['data'])
+
+    msgs = [{
+        "role": msg.role,
+        "content": msg.content[0:50] + ' ... ' + msg.content[-50:],
+        "name": msg.name,
+        "tool_calls": msg.tool_calls,
+        "tool_calls_id": msg.tool_call_id
+    } for msg in msgs]
+    # print(f'Messages:', msg)
+    print(f"Messages:")
+    for msg in msgs:
+        print(msg)
+        print('---')
     print(f"Tools available: {bool(request.tools)}")
+    print('=========================')
+    print('=========================')
+    print('=========================')
 
     use_tool = await should_use_tool(request.messages, request.tools)
     print(f"Decision to use tool: {use_tool}")
@@ -482,14 +505,15 @@ async def chat_completion(request: ChatCompletionRequest):
         )
     else:
         prompt = format_messages(request.messages, model_type, use_tool)
-        print(f"Using normal conversation for prompt: {prompt}")
+        print(
+            f"Using normal conversation for prompt: {prompt[:200] + ' ... ' + prompt[len(prompt) // 2:len(prompt) // 2 + 100] + ' ... ' + prompt[-2000:]}")
 
         sampling_params = {
             "temperature": request.temperature,
             "max_tokens": request.max_tokens,
-            "top_p": 1,
-            "presence_penalty": 0,
-            "frequency_penalty": 0,
+            "top_p": 0.9,
+            "presence_penalty": 0.6,
+            "frequency_penalty": 0.3,
             "stop": ["</s>", "[INST]"]
         }
         print('sampling_params', sampling_params)

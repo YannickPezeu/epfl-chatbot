@@ -1,14 +1,12 @@
-import requests
 from langchain.agents.output_parsers import ToolsAgentOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from langchain_core.utils.function_calling import convert_to_openai_function
 from langchain_groq import ChatGroq
-from langchain_openai import AzureChatOpenAI, ChatOpenAI  # Changed to Azure-specific import
+from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 import os
 import tiktoken
-from typing import List, Tuple, Union
+from typing import Tuple, Union
 
 load_dotenv()
 
@@ -20,7 +18,7 @@ from langchain.agents import AgentExecutor
 from langchain.globals import set_debug
 from myUtils.connect_acad import initialize_all_connection
 from searchEngine.search_engines import create_search_engine_tool
-from myUtils.get_prompt import get_prompt, MEMORY_KEY
+from myUtils.get_prompt import get_prompt
 from langchain.agents.format_scratchpad import format_to_tool_messages
 
 set_debug(False)
@@ -36,10 +34,8 @@ db_paths = {
 
 tiktoken_encoding = tiktoken.get_encoding("cl100k_base")
 
-from typing import Any, List, Mapping, Optional
-from langchain.llms.base import LLM
-from langchain.callbacks.manager import CallbackManagerForLLMRun
-import requests
+from typing import List
+
 
 
 def convert_db_messages_to_langchain_messages(db_messages: List[Tuple]) -> List[Union[HumanMessage, AIMessage]]:
@@ -136,7 +132,6 @@ def createAgent(
     ]
     llm_with_tools = llm.bind_tools(tools=tools)
 
-    # Rest of your code remains the same
     if conversation_id is not None and conversation_id:
         db_messages = get_chat_history(conversation_id)
         print('db_messages:', db_messages)
@@ -174,7 +169,6 @@ def createAgent(
     return agent_executor, conversation_id
 
 
-# Updated model names to match Azure deployments
 azure_model_names = [
     "gpt-4o",
     "gpt-4o-mini"
