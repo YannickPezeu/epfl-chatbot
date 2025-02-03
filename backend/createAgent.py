@@ -21,7 +21,7 @@ from searchEngine.search_engines import create_search_engine_tool
 from myUtils.get_prompt import get_prompt
 from langchain.agents.format_scratchpad import format_to_tool_messages
 
-set_debug(False)
+set_debug(True)
 
 # Database paths setup
 lex_db_path = os.path.realpath(os.path.join(root_dir, 'data/LEXs/LEXs.db'))
@@ -166,6 +166,7 @@ def createAgent(
         raise ValueError('interaction_type must be chat or email')
 
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, return_intermediate_steps=True)
+    print('agent_executor:', agent_executor)
     return agent_executor, conversation_id
 
 

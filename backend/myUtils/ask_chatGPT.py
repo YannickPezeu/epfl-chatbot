@@ -19,6 +19,7 @@ def ask_chatGPT(prompt, system_instruction=None, temperature=0.1, max_tokens=230
     client = OpenAI(
         api_key=openai_key
     )
+    print('asking GPT on prompt: ', prompt, '...')
 
     if verbose:
         print('asking GPT on prompt: ', prompt, '...')

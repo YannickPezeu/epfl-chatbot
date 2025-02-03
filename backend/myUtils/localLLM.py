@@ -230,7 +230,6 @@ class LocalLLM(ChatOpenAI):
                     json={**params, "messages": message_dicts}
             ) as response:
                 async for line in response.content:
-                    print('line:', line)
 
                     if not line or line == b"data: [DONE]\n":
                         continue
