@@ -61,7 +61,7 @@ print('parent_dir', root_project_dir)
 sys.path.insert(0, root_project_dir)
 from myUtils.urlToPDF import UrlToPdf
 from docx2pdf import convert
-from myUtils.connect_acad import initialize_all_connection
+from myUtils.connect_acad2 import initialize_all_connection
 
 
 

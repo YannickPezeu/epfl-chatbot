@@ -12,7 +12,7 @@ sys.path.append(root_folder)
 
 #from transformers import CamembertModel, CamembertTokenizer, pipeline
 
-from myUtils.connect_acad import reconnect_on_failure
+from myUtils.connect_acad2 import reconnect_on_failure
 
 
 # import nltk

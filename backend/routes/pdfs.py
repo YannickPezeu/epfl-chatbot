@@ -1,5 +1,5 @@
 from fastapi import HTTPException, APIRouter
-from myUtils.connect_acad import initialize_all_connection
+from myUtils.connect_acad2 import initialize_all_connection
 from starlette.responses import StreamingResponse
 import io
 

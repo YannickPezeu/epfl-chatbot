@@ -8,7 +8,7 @@ from fastapi import APIRouter, Cookie, HTTPException, WebSocketDisconnect
 from starlette.websockets import WebSocketState, WebSocket
 
 from typing import Dict
-from myUtils.connect_acad import initialize_all_connection
+from myUtils.connect_acad2 import initialize_all_connection
 from createAgent import createAgent
 from searchEngine.search_engines import search_engine
 from myUtils.ask_chatGPT import ask_chatGPT

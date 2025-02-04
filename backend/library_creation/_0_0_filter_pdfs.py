@@ -1,6 +1,6 @@
 import json
 
-from myUtils.connect_acad import initialize_all_connection
+from myUtils.connect_acad2 import initialize_all_connection
 from myUtils.read_pdf_online import read_pdf_from_db_online
 from myUtils.ask_chatGPT import ask_chatGPT
 import dotenv

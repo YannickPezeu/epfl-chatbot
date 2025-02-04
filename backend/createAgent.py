@@ -16,7 +16,7 @@ root_dir = current_dir
 
 from langchain.agents import AgentExecutor
 from langchain.globals import set_debug
-from myUtils.connect_acad import initialize_all_connection
+from myUtils.connect_acad2 import initialize_all_connection
 from searchEngine.search_engines import create_search_engine_tool
 from myUtils.get_prompt import get_prompt
 from langchain.agents.format_scratchpad import format_to_tool_messages
@@ -51,6 +51,7 @@ def convert_db_messages_to_langchain_messages(db_messages: List[Tuple]) -> List[
 
 def get_chat_history(conversation_id):
     try:
+        print('getting chat history:', conversation_id)
         conn, cursor = initialize_all_connection()
         cursor.execute('''SELECT author_type, content, timestamp FROM messages WHERE conversation_id=%s''',
                        (conversation_id,))

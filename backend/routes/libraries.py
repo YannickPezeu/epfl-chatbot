@@ -1,6 +1,6 @@
 # routes/libraries.py
 from fastapi import APIRouter, Cookie, BackgroundTasks
-from myUtils.connect_acad import initialize_all_connection, reconnect_on_failure
+from myUtils.connect_acad2 import initialize_all_connection, reconnect_on_failure
 from routes.auth import get_username_from_session_token
 
 from myUtils.ask_chatGPT import ask_chatGPT

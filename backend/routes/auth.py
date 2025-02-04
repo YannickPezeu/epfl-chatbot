@@ -5,10 +5,10 @@ import bcrypt
 from fastapi import HTTPException, APIRouter, Cookie
 from pydantic import BaseModel
 
-from myUtils.connect_acad import initialize_all_connection
+from myUtils.connect_acad2 import initialize_all_connection
 from myUtils.ask_chatGPT import ask_chatGPT
 import base64
-from myUtils.connect_acad import reconnect_on_failure
+from myUtils.connect_acad2 import reconnect_on_failure
 from fastapi import Response
 
 

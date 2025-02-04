@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from myUtils.connect_acad import reconnect_on_failure
+from myUtils.connect_acad2 import reconnect_on_failure
 @reconnect_on_failure
 def retrieve_embedding_from_db_online(embedding_ids: list, cursor):
 

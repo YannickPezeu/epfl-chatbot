@@ -2,7 +2,7 @@ from fastapi import HTTPException
 
 from library_creation._2_embedd_small_chunks import dtypes_for_models
 from routes.libraries import insert_user_library, insert_big_chunks_into_db, insert_small_chunks_into_db, insert_embeddings_models_into_db, embedd_all_small_chunks, create_faiss_index
-from myUtils.connect_acad import reconnect_on_failure, initialize_all_connection
+from myUtils.connect_acad2 import reconnect_on_failure, initialize_all_connection
 
 import dotenv
 import os

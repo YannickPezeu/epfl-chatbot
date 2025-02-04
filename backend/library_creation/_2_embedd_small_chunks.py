@@ -15,7 +15,7 @@ sys.path.append(root_folder)
 
 # import nltk
 # nltk.download('punkt')
-from myUtils.connect_acad import reconnect_on_failure, initialize_all_connection
+from myUtils.connect_acad2 import reconnect_on_failure, initialize_all_connection
 
 from myUtils.get_embeddings import get_embeddings
 

@@ -1,4 +1,4 @@
-from myUtils.connect_acad import reconnect_on_failure, initialize_all_connection
+from myUtils.connect_acad2 import reconnect_on_failure, initialize_all_connection
 
 @reconnect_on_failure
 def create_historic_table_if_not_exists(cursor):

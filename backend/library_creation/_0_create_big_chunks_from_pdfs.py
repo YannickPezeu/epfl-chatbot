@@ -9,7 +9,7 @@ sys.path.append(root_folder)
 sys.path.append(utils_folder)
 
 
-from myUtils.connect_acad import reconnect_on_failure
+from myUtils.connect_acad2 import reconnect_on_failure
 print('root_folder:', root_folder)
 
 

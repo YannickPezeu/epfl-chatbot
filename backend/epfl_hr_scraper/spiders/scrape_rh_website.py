@@ -25,7 +25,7 @@ from myUtils.textExtractor import read_docx_pdf
 from myUtils.urlToPDF import UrlToPdf
 import pickle as pkl
 from docx2pdf import convert
-from myUtils.connect_acad import initialize_all_connection
+from myUtils.connect_acad2 import initialize_all_connection
 
 class HrSpider(scrapy.Spider):
     name = 'hr_spider'

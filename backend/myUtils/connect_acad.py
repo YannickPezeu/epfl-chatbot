@@ -146,13 +146,17 @@ def initialize_all_connection():
         print('pool is not None')
     start = time.time()
     try:
-        # print("Pool status before getting connection:", get_pool_status())
+        print('getting connection')
+        print("Pool status before getting connection:", get_pool_status())
         conn = pool.connection()
-        # print("Pool status after getting connection:", get_pool_status())
-        # print('time taken to get connection:', time.time()-start)
+        print('conn:', conn)
+        print("Pool status after getting connection:", get_pool_status())
+        print('time taken to get connection:', time.time()-start)
         start = time.time()
+        print('getting cursor')
         cursor = conn.cursor()
-        # print('time taken to get cursor:', time.time()-start)
+        print('cursor:', cursor)
+        print('time taken to get cursor:', time.time()-start)
         return conn, cursor
     except Exception as e:
         print(f"Database error occurred in initialize: {e}")

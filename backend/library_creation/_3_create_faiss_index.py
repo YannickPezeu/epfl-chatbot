@@ -6,7 +6,7 @@ import traceback
 import numpy as np
 
 from myUtils.retrieve_embedding_from_db_online import retrieve_embedding_from_db_online
-from myUtils.connect_acad import reconnect_on_failure
+from myUtils.connect_acad2 import reconnect_on_failure
 import faiss
 import json
 import tempfile
