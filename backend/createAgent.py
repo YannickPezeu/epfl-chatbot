@@ -100,7 +100,7 @@ def createAgent(
         rerank=False,
         special_prompt=None,
         conversation_id=None,
-        use_local_llm=False  # New parameter to control LLM choice
+        use_local_llm=False
 ):
     if use_local_llm:
         llm = LocalLLM(

@@ -133,7 +133,6 @@ redis_state_manager = RedisStateManager()
 
 async def process_file(file_data, filename, ws_connection_id):
     # Create a temporary file to store the uploaded data
-    # print('processing file:', filename)
     with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:
         temp_file.write(file_data)
         temp_file_path = temp_file.name
@@ -153,7 +152,6 @@ async def process_file(file_data, filename, ws_connection_id):
                         'text': extracted_text
                     }
                 )
-                # print('processed pdf file:', filename)
                 return {
                     "message": f"PDF {filename} processed successfully",
                     "extracted_text": extracted_text,
@@ -162,12 +160,8 @@ async def process_file(file_data, filename, ws_connection_id):
                     'filename': filename
                 }
             else:
-                # print(f"Failed to extract text from PDF {filename}")
                 return {"error": f"Failed to extract text from PDF {filename}", 'type': 'file_upload_error', 'filename': filename}
         else:
-            # For other file types, you can implement different processing logic
-            # or simply save the file
-
             return {"message": f"File {filename} not pdf"}
     finally:
         # Clean up the temporary file
@@ -179,8 +173,8 @@ class WsConnectionManager:
 
     async def connect(self, websocket: WebSocket, ws_connection_id: str):
         print('connecting to {}'.format(ws_connection_id))
-        print('active connections', self.active_connections)
-        print('number of active connections:', len(self.active_connections))
+        print('active ws connections', self.active_connections)
+        print('number of active ws connections:', len(self.active_connections))
         await websocket.accept()
         if ws_connection_id in self.active_connections:
             print('waiting disconnect0')
@@ -188,11 +182,11 @@ class WsConnectionManager:
         self.active_connections[ws_connection_id] = websocket
 
     async def disconnect(self, ws_connection_id: str):
-        print('disconnecting from {}'.format(ws_connection_id))
-        print('active connections', self.active_connections)
+        print('disconnecting ws from {}'.format(ws_connection_id))
+        print('active ws connections', self.active_connections)
         if ws_connection_id in self.active_connections:
             try:
-                print('closing connection0')
+                print('closing ws connection0')
                 await self.active_connections[ws_connection_id].close()
             except RuntimeError as e:
                 if "websocket.close" not in str(e).lower():
@@ -202,7 +196,6 @@ class WsConnectionManager:
 
     async def send_message(self, message: dict, ws_connection_id: str):
         if ws_connection_id in self.active_connections:
-            print('waiting sending message to:', ws_connection_id)
             await self.active_connections[ws_connection_id].send_json(message)
 
 manager = WsConnectionManager()
@@ -233,7 +226,6 @@ def get_chat_history(conversation_id):
 async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
     try:
         print('ws_connection_id', ws_connection_id)
-        print('waiting connect')
         await manager.connect(websocket, ws_connection_id)
 
         agent_session = agent_sessions.get(ws_connection_id)
@@ -241,34 +233,22 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
 
         if not agent_session:
             print(f"Session not found for connection {ws_connection_id}")
-            print('waiting send message session not found')
             await manager.send_message({"error": "Session not found"}, ws_connection_id)
-            print('waiting disconnect session not found')
             await manager.disconnect(ws_connection_id)
             return
 
         agent_session.chat_history = convert_db_messages_to_langchain_messages(get_chat_history(conversation_id))
 
         try:
-            start = time.time()
-            checkpoint = time.time()
             while True:
-                new_checkpoint = time.time()
 
-                print('time elapsed:', new_checkpoint - checkpoint, ws_connection_id)
-                checkpoint = new_checkpoint
 
-                if time.time() - start > 60:
-                    print('timeout')
-                    break
                 if websocket.application_state == WebSocketState.DISCONNECTED:
                     print(f"Client disconnected from session {ws_connection_id}")
                     break
 
-                print('waiting for message::', ws_connection_id)
                 message = await websocket.receive()
 
-                print('message::', ws_connection_id, message)
 
                 if message['type'] == 'websocket.disconnect':
                     print(f"Client disconnected from session {ws_connection_id}")
@@ -286,9 +266,7 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                         header_json = data[4:4 + header_length].decode('utf-8')
                         try:
                             header = json.loads(header_json)
-                            # print('Received file header:', header)
                         except json.JSONDecodeError:
-                            # print("Error decoding JSON header:", header_json)
                             continue
 
                         if header['type'] == 'file':
@@ -305,17 +283,12 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                             await manager.send_message(response, ws_connection_id)
                         else:
                             pass
-                            # print("Unexpected message type:", header['type'])
 
                     if 'text' in message:
-                        # Handle text message (existing logic)
                         data = json.loads(message['text'])
-                        # print('data', data)
 
                         if data.get('type') == 'remove_file':
                             filename_to_remove = data.get('filename')
-                            # UPLOADED_FILES[ws_connection_id] = [f for f in UPLOADED_FILES[ws_connection_id] if f['filename'] != filename_to_remove]
-                            # print('UPLOADED_FILES UPDATED', UPLOADED_FILES)
                             redis_state_manager.handle_uploaded_files(
                                 ws_connection_id,
                                 "remove",
@@ -327,15 +300,9 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                         elif agent_session.agent == 'No_Model':
                             print('no model')
                             response = get_response_no_model(data, agent_session)
-                            print('waiting send message no model')
                             await manager.send_message(response, ws_connection_id)
                         else:
                             user_input = data['user_input']
-                            # print('UPLOAD_FILES', UPLOADED_FILES)
-                            # if UPLOADED_FILES.get(ws_connection_id):
-                            #     for f in UPLOADED_FILES[ws_connection_id]:
-                            #         user_input = f['text'] + '\n' + user_input
-                            #     UPLOADED_FILES[ws_connection_id] = []
                             uploaded_files = redis_state_manager.handle_uploaded_files(ws_connection_id, "get")
                             if uploaded_files:
                                 for f in uploaded_files:
@@ -344,7 +311,6 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
 
                             interaction_type = data.get('interaction_type')
                             reload_message = data.get('reload_message')
-                            # print('reload_message', reload_message)
 
                             if reload_message:
                                 chat_history = agent_session.chat_history
@@ -371,18 +337,13 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                                     version="v1"
                             ):
                                 chain_end = False
-                                # # print('mychunk', chunk)
                                 if chunk['event'] == 'on_tool_end' and chunk['name'] in ['search_engine_tool']:
                                     print('chunk tool end', chunk)
                                     run_id = chunk.get('run_id')
                                     if 'run_id' not in chunk:
                                         pass
-                                        # print('run_id not in chunk data:', chunk)
                                     output = json.loads(chunk['data']['output'])
-                                    # print('myoutput', output)
-                                    # print('myoutput keys', output.keys())
                                     sources = output['sources']
-                                    # print('sources', sources)
                                     n_tokens_input = output['n_tokens_input']
                                     chunk_data ={
                                         'type': 'tool_answer',
@@ -402,7 +363,6 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                                     conn.commit()
 
                                     try:
-                                        print('waiting send message tool answer json')
                                         await websocket.send_json(chunk_data)
                                     except Exception as e:
                                         raise e
@@ -420,12 +380,9 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                                                   'run_id': run_id
                                                   }
                                     try:
-                                        print('waiting send message chain stream json')
                                         await websocket.send_json(chunk_data)
                                     except Exception as e:
                                         raise e
-                                        # print('error', e)
-                                        # print('chunk_data', chunk_data)
 
                                 elif chunk['event'] == 'on_chat_model_stream':
                                     run_id = chunk.get('run_id')
@@ -453,12 +410,9 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                                         chunk_data = {'data': ''}
 
                                     try:
-                                        print('waiting send message chat model stream json')
                                         await manager.send_message(chunk_data, ws_connection_id)
                                     except Exception as e:
                                         raise e
-                                        # print('error', e)
-                                        # print('chunk_data', chunk_data)
 
                                 elif chunk['event'] == 'on_chain_end' and chunk['name'] == 'AgentExecutor':
                                     agent_session.chat_history.extend(
@@ -470,7 +424,6 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
 
                                     add_message_to_conversation(agent_session.conversation_id, 'user', user_input)
                                     add_message_to_conversation(agent_session.conversation_id, 'ai_robot', str(chunk['data']['output'].get('output')))
-                                    # print("------")
 
                 else:
                     print('message type not recognized:', message)
@@ -624,7 +577,7 @@ async def create_new_ws_connection(
                 rerank=rerank,
                 special_prompt=special_prompt,
                 conversation_id=conversation_id,
-                use_local_llm=False
+                use_local_llm=True
                 )
 
 

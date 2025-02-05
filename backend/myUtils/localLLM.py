@@ -1,5 +1,4 @@
 import traceback
-
 from langchain_openai.chat_models.base import ChatOpenAI
 from langchain.callbacks.manager import CallbackManagerForLLMRun, AsyncCallbackManagerForLLMRun
 from langchain_core.messages import (
@@ -35,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class LocalLLM(ChatOpenAI):
-    """Custom LLM class for local vLLM server with improved async support and connection handling."""
+    """Custom LLM class for local vLLM server with improved connection handling."""
 
     base_url: str = Field(default="http://localhost:8001")
     streaming: bool = Field(default=True)
@@ -186,17 +185,15 @@ class LocalLLM(ChatOpenAI):
         else:
             return ChatMessage(content=content, role=role)
 
-    # Fix 1: Update _parse_tool_call in LocalLLM class (paste-2.txt)
     def _parse_tool_call(self, raw_tool_call: Dict) -> dict:
         """Parse a raw tool call into the expected format."""
         function_data = raw_tool_call["function"]
-        # Add tool_call_id to the output
         return {
             "id": raw_tool_call.get("id", ""),
             "type": "function",
             "name": function_data["name"],
             "args": json.loads(function_data["arguments"]),
-            "tool_call_id": raw_tool_call.get("id", "")  # Add this line
+            "tool_call_id": raw_tool_call.get("id", "")
         }
 
     def _make_invalid_tool_call(self, raw_tool_call: Dict, error: str) -> dict:
@@ -221,7 +218,11 @@ class LocalLLM(ChatOpenAI):
         params = {**params, **kwargs, "stream": True}
 
         timeout = ClientTimeout(total=60, connect=10, sock_read=30)
-        connector = TCPConnector(force_close=True)
+        connector = TCPConnector(
+            force_close=True,
+            limit=50,  # Limit concurrent connections
+            enable_cleanup_closed=True
+        )
         headers = {"Content-Type": "application/json"}
 
         async with aiohttp.ClientSession(timeout=timeout, connector=connector, headers=headers) as session:
@@ -230,7 +231,6 @@ class LocalLLM(ChatOpenAI):
                     json={**params, "messages": message_dicts}
             ) as response:
                 async for line in response.content:
-
                     if not line or line == b"data: [DONE]\n":
                         continue
 
@@ -307,7 +307,11 @@ class LocalLLM(ChatOpenAI):
         params = {**params, **kwargs}
 
         timeout = ClientTimeout(total=60, connect=10)
-        connector = TCPConnector(force_close=True)
+        connector = TCPConnector(
+            force_close=True,
+            limit=50,
+            enable_cleanup_closed=True
+        )
         headers = {"Content-Type": "application/json"}
 
         async with aiohttp.ClientSession(timeout=timeout, connector=connector, headers=headers) as session:
