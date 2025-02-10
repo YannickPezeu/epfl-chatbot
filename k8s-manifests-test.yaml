@@ -89,11 +89,20 @@ spec:
           requests:
             cpu: "500m"
             memory: "2Gi"
-            ephemeral-storage: "4Gi"  # Enough for your image + working files
+            ephemeral-storage: "4Gi"
+            nvidia.com/gpu: "8"
           limits:
             cpu: "2"
             memory: "4Gi"
             ephemeral-storage: "6Gi"
+            nvidia.com/gpu: "8"
+        volumeMounts:
+        - name: local-storage
+          mountPath: /data  # You can change this mount path as needed
+      volumes:
+      - name: local-storage
+        persistentVolumeClaim:
+          claimName: local-disk  # This is the PVC name provided by your admin
 
 ---
 # Backend Service

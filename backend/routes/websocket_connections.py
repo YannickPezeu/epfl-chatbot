@@ -338,7 +338,7 @@ async def websocket_endpoint(websocket: WebSocket, ws_connection_id: str):
                             ):
                                 chain_end = False
                                 if chunk['event'] == 'on_tool_end' and chunk['name'] in ['search_engine_tool']:
-                                    print('chunk tool end', chunk)
+                                    # print('chunk tool end', chunk)
                                     run_id = chunk.get('run_id')
                                     if 'run_id' not in chunk:
                                         pass

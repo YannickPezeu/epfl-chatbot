@@ -8,6 +8,7 @@ import time
 import httpx
 import asyncio
 import re
+import uuid
 
 app = FastAPI()
 
@@ -59,7 +60,8 @@ def get_model_type() -> str:
         return "auto"
 
 
-model_type = get_model_type()
+# model_type = get_model_type()
+model_type = 'mistral'
 print('model_type', model_type)
 
 
@@ -469,7 +471,10 @@ async def generate_tool_stream(request_id: str, messages: List[Message], tools: 
 @app.post("/v1/chat/completions")
 async def chat_completion(request: ChatCompletionRequest):
     print("\n=== Starting new chat completion request ===")
+    print('request:', request)
+    print('=-'*100)
     msgs = request.messages
+    user_msgs = [msg for msg in msgs if msg.role =='user']
     for msg in request.messages:
         if msg.role == 'tool':
             dico_tool_result = json.loads(msg.content)
@@ -493,9 +498,10 @@ async def chat_completion(request: ChatCompletionRequest):
     print('=========================')
 
     use_tool = await should_use_tool(request.messages, request.tools)
-    print(f"Decision to use tool: {use_tool}")
+    print(f"Decision to use tool for msg {user_msgs[-1].content}: {use_tool}")
 
-    request_id = f"req_{int(time.time())}"
+
+    request_id = f"req_{uuid.uuid4()}"
 
     if use_tool:
         print("Using tool for conversation")
@@ -523,6 +529,129 @@ async def chat_completion(request: ChatCompletionRequest):
             media_type="text/event-stream"
         )
 
+
+class ChatCompletionRequestSync(BaseModel):
+    model: str
+    messages: List[Message]
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 2048
+    tools: Optional[List[Tool]] = None
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = None
+
+
+async def generate_normal_sync(prompt: str, sampling_params: Dict[str, Any]):
+    """Generate a normal synchronous response."""
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{LLM_SERVICE_URL.replace('generate', 'generate_sync')}",
+                json={
+                    "prompt": prompt,
+                    "sampling_params": sampling_params
+                }
+            )
+
+            if response.status_code != 200:
+                raise HTTPException(status_code=response.status_code, detail="LLM service error")
+
+            result = response.json()
+            return result["generated_text"]
+
+    except Exception as e:
+        print(f"Error in sync generation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def generate_tool_sync(messages: List[Message], tools: List[Tool]):
+    """Generate a synchronous response for tool usage."""
+    request_id = f"req_{int(time.time())}"
+    tool_name, tool_query = await generate_tool_query(request_id, messages, tools)
+    tool_call_id = f"call_{request_id}_{int(time.time())}"
+
+    return {
+        "id": f"chatcmpl-{request_id}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": "local-model",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": json.dumps({"question": tool_query}, ensure_ascii=False)
+                    }
+                }]
+            },
+            "finish_reason": "tool_calls"
+        }]
+    }
+
+
+@app.post("/v1/chat/completions/sync")
+async def chat_completion_sync(request: ChatCompletionRequestSync):
+    """Non-streaming version of chat completion"""
+    print("\n=== Starting new synchronous chat completion request ===")
+
+    # Process tool results in messages
+    msgs = request.messages
+    for msg in msgs:
+        if msg.role == 'tool':
+            dico_tool_result = json.loads(msg.content)
+            msg.content = json.dumps(dico_tool_result['data'])
+
+    # Log messages
+    msgs_log = [{
+        "role": msg.role,
+        "content": msg.content[0:50] + ' ... ' + msg.content[-50:],
+        "name": msg.name,
+        "tool_calls": msg.tool_calls,
+        "tool_calls_id": msg.tool_call_id
+    } for msg in msgs]
+    print(f"Messages:")
+    for msg in msgs_log:
+        print(msg)
+        print('---')
+    print(f"Tools available: {bool(request.tools)}")
+
+    # use_tool = await should_use_tool(request.messages, request.tools)
+    # print(f"Decision to use tool: {use_tool}")
+
+    # if use_tool and request.tools:
+    #     print("Using tool for conversation")
+    #     return await generate_tool_sync(request.messages, request.tools)
+    # else:
+    prompt = format_messages(request.messages, model_type, use_tool)
+    print(f"Using normal conversation with prompt: {prompt[:200]}...")
+
+    sampling_params = {
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens,
+        "top_p": 0.9,
+        "presence_penalty": 0.6,
+        "frequency_penalty": 0.3,
+        "stop": ["</s>", "[INST]"]
+    }
+
+    generated_text = await generate_normal_sync(prompt, sampling_params)
+
+    return {
+        "id": f"chatcmpl-{int(time.time())}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": "local-model",
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": generated_text
+            },
+            "finish_reason": "stop"
+        }]
+    }
 
 if __name__ == "__main__":
     uvicorn.run("formatting_service:app", host="0.0.0.0", port=8001, reload=True)
