@@ -8,7 +8,9 @@ import os
 import tiktoken
 from typing import Tuple, Union
 
+print('loading env vars...')
 load_dotenv()
+print('env vars loaded')
 
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -102,12 +104,15 @@ def createAgent(
         conversation_id=None,
         use_local_llm=False
 ):
+    print('use_local_llm:', use_local_llm)
     if use_local_llm:
         llm = LocalLLM(
             base_url="http://host.docker.internal:8001",
+            # base_url="http://localhost:8001",
             streaming=True,
             tool_choice="auto"  # or "any" to force tool usage
         )
+        print('llm.base_url:', llm.base_url)
     elif 'gpt' in model_name:
         llm = ChatOpenAI(
             model=model_name,

@@ -1,0 +1,1 @@
+kubectl get pods -l app=epfl-chatbot-compose-backend-test

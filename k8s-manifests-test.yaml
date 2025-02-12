@@ -76,7 +76,7 @@ spec:
     spec:
       containers:
       - name: epfl-chatbot-compose-backend-test
-        image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-backend-test
+        image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-backend-test-local
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -88,21 +88,27 @@ spec:
         resources:
           requests:
             cpu: "500m"
-            memory: "2Gi"
-            ephemeral-storage: "4Gi"
+            memory: "50Gi"
+            ephemeral-storage: "50Gi"
             nvidia.com/gpu: "8"
           limits:
             cpu: "2"
-            memory: "4Gi"
-            ephemeral-storage: "6Gi"
+            memory: "80Gi"
+            ephemeral-storage: "80Gi"
             nvidia.com/gpu: "8"
         volumeMounts:
         - name: local-storage
           mountPath: /data  # You can change this mount path as needed
+        - name: dshm  # Add shared memory volume mount
+          mountPath: /dev/shm
       volumes:
       - name: local-storage
         persistentVolumeClaim:
           claimName: local-disk  # This is the PVC name provided by your admin
+      - name: dshm  # Add shared memory volume
+        emptyDir:
+          medium: Memory
+          sizeLimit: "16Gi"  # Adjust size based on your needs
 
 ---
 # Backend Service

@@ -1,9 +1,29 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11-slim-buster
+FROM nvcr.io/nvidia/pytorch:22.12-py3
+
+# Set environment variables for non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Set environment variables for older GPU compatibility
+ENV VLLM_CUDA_COMPAT=1
+ENV TORCH_CUDA_ARCH_LIST=5.2
+ENV CUDA_MODULE_LOADING=LAZY
+ENV CUDA_VISIBLE_DEVICES="0,1,2,3"
+
+# NCCL settings for debugging and compatibility
+ENV NCCL_DEBUG=INFO
+ENV NCCL_IB_DISABLE=1
+ENV NCCL_ALGO=RING
+ENV NCCL_PROTO=LL
+ENV NCCL_MAX_NRINGS=1
+ENV NCCL_BUFFSIZE=4194304
+ENV NCCL_NET_GDR_READ=1
+ENV NCCL_LAUNCH_MODE=PARALLEL
 
 WORKDIR /python-docker
 
-COPY requirements.txt requirements.txt
+COPY requirements_titan.txt requirements_titan.txt
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -37,7 +57,7 @@ RUN pip install -v vllm
 # Install Python dependencies
 RUN pip install --upgrade pip
 RUN pip install pypdf python-multipart
-RUN pip install -r requirements.txt
+RUN pip install -r requirements_titan.txt
 RUN pip install tenacity
 
 # Install pdf2image
@@ -55,9 +75,11 @@ EXPOSE 8000
 EXPOSE 80
 EXPOSE 443
 
-ENV NAME World
+ENV NAME=World
 
 # Set Tesseract data path
 ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/4.00/tessdata
 
-CMD ["python", "main.py"]
+RUN chmod +x start_service.sh
+
+CMD ["./start_service.sh"]
