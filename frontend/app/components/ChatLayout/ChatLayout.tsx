@@ -236,7 +236,7 @@ export const ChatLayout = ({
               <br />
               Les librairies sont les banques de données auxquelles le LLM a accès. <br />
               Vous pouvez changer de librairie en ouvrant le menu déroulant à gauche. <br />
-              Vous pouvez également créer une nouvelle librairie mais uniquement à partir de PDFs. <br />
+              Vous pouvez également créer une nouvelle librairie mais uniquement à partir de source_docs. <br />
               Pour cela, cliquez sur le bouton &quot;Create New Library&quot; <br />
             </p>
             <br />

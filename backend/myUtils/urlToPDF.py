@@ -113,7 +113,7 @@ class UrlToPdf:
         response = self.driver.command_executor._request('POST', url, body)
         return response.get('value')
 
-    def _generate_pdfs(self):
+    def _generate_source_docs(self):
         pdf_files = []
         for url in self.urls:
             result = self._get_pdf_from_url(url)
@@ -127,12 +127,13 @@ class UrlToPdf:
         options.add_argument('--disable-gpu')
 
         self.driver = webdriver.Chrome(
-            service=ChromeService(ChromeDriverManager().install()),
+            service=ChromeService(
+                r"C:\Users\pezeu\.wdm\drivers\chromedriver\win64\134.0.6998.90\chromedriver-win32\chromedriver.exe"),
             options=options
         )
 
         try:
-            result = self._generate_pdfs()
+            result = self._generate_source_docs()
         finally:
             self.driver.quit()  # Ensure the driver is closed properly
 

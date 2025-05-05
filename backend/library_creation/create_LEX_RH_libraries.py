@@ -15,20 +15,20 @@ def create_library_from_pdf_table(library_name):
     conn, cursor = initialize_all_connection()
     username = 'all_users'
     print(
-        f"Creating library '{library_name}' from PDFs table. This may take a while depending on the number of PDFs in the table.")
+        f"Creating library '{library_name}' from source_docs table. This may take a while depending on the number of source_docs in the table.")
 
-    #create pdfs table if not exists
+    #create source_docs table if not exists
     try:
 
-        insert_big_chunks_into_db(library_name, username, cursor=cursor)
-        conn.commit()
-        print('inserting small chunks')
-        insert_small_chunks_into_db(library_name, username, cursor=cursor)
-        conn.commit()
-        print('creating embeddings models')
+        # insert_big_chunks_into_db(library_name, username, cursor=cursor)
+        # conn.commit()
+        # print('inserting small chunks')
+        # insert_small_chunks_into_db(library_name, username, cursor=cursor, connection=conn)
+        # conn.commit()
+        # print('creating embeddings models')
 
 
-        for model_name, language in zip([ 'openai',
+        for model_name, language in zip([ 'rcp',
                                           # 'camembert', 'mistral', 'mpnet','fr_long_context', 'embaas', 'gte'
                                           ], ['fr',
                                               # 'fr','fr','fr','fr','fr','fr',
@@ -39,7 +39,7 @@ def create_library_from_pdf_table(library_name):
             conn.commit()
 
             print('embedding all small chunks:', model_name, language, library_name, username)
-            embedd_all_small_chunks(library_name, model_name, language, username, cursor=cursor, mistral_key=mistral_key, openai_key=openai_key)
+            embedd_all_small_chunks(library_name, model_name, language, username, cursor=cursor, connection=conn, mistral_key=mistral_key, openai_key=openai_key)
             conn.commit()
 
             print('creating faiss index')

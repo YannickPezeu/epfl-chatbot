@@ -115,8 +115,8 @@ def create_small_chunks_table(cursor):
 );''')
 
 @reconnect_on_failure
-def create_pdfs_table_if_not_exists(cursor):
-    cursor.execute("""CREATE TABLE IF NOT EXISTS pdfs (
+def create_source_docs_table_if_not_exists(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS source_docs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     file LONGBLOB,
     date_detected TEXT,
@@ -230,8 +230,8 @@ def create_all_tables():
     conn, cursor = initialize_all_connection()
 
     print('creating tables')
-    create_pdfs_table_if_not_exists(cursor=cursor)
-    print('pdfs table created')
+    create_source_docs_table_if_not_exists(cursor=cursor)
+    print('source_docs table created')
     create_user_libraries_table_if_not_exists(cursor=cursor)
     print('userTables table created')
     create_big_chunks_table(cursor=cursor)

@@ -19,7 +19,7 @@ export default function Home() {
           <p>A space for tools in development</p>
 
         </Link> */}
-        <Link href="/RH_chatbot_prototype" className={styles.card}>
+        <Link href="/VPH_chatbot_prototype" className={styles.card}>
           <h2>Human Ressources chatbot</h2>
           <p>A chatbot with libraries containing document related to human ressources. </p>
         </Link>

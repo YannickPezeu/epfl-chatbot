@@ -52,7 +52,7 @@ class HrSpider(scrapy.Spider):
 
     def has_page_changed_from_db(self, response):
         new_checksum = self.generate_checksum(response.text)
-        self.cursor.execute("SELECT checksum FROM pdfs WHERE url=%s", (response.url,))
+        self.cursor.execute("SELECT checksum FROM source_docs WHERE url=%s", (response.url,))
         stored_checksum = self.cursor.fetchone()
         if stored_checksum:
             has_changed, new_checksum = self.has_page_changed(new_checksum, stored_checksum[0])
@@ -144,7 +144,7 @@ class HrSpider(scrapy.Spider):
 
             # insert into database with ON DUPLICATE KEY UPDATE
             self.cursor.execute("""
-                INSERT INTO pdfs 
+                INSERT INTO source_docs 
                     (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username) 
                 VALUES 
                     (%s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -278,7 +278,7 @@ class HrSpider(scrapy.Spider):
 
         # Use ON DUPLICATE KEY UPDATE for MySQL
         self.cursor.execute("""
-            INSERT INTO pdfs 
+            INSERT INTO source_docs 
                 (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username)
             VALUES 
                 (%s, %s, %s, %s, %s, %s, %s, %s, %s)

@@ -155,7 +155,7 @@ class SearchEngine:
                         if chunk[1] in big_chunks})
 
         cursor.execute(
-            """SELECT id, url, title FROM pdfs WHERE id IN ({})""".format(
+            """SELECT id, url, title FROM source_docs WHERE id IN ({})""".format(
                 ','.join(['%s'] * len(pdf_ids))
             ),
             pdf_ids

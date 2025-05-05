@@ -175,11 +175,11 @@ def search_engine(
 
         pdf_ids = [bc[1] for bc in big_chunks if bc[0] in big_chunk_map]
         # print('pdf_ids:', pdf_ids)
-        cursor.execute("SELECT id, url, title FROM pdfs WHERE id IN ({})".format(','.join(['%s']*len(pdf_ids))), pdf_ids)
-        pdfs = cursor.fetchall()
-        pdf_map = {pdf[0]: pdf for pdf in pdfs}
+        cursor.execute("SELECT id, url, title FROM source_docs WHERE id IN ({})".format(','.join(['%s']*len(pdf_ids))), pdf_ids)
+        source_docs = cursor.fetchall()
+        pdf_map = {pdf[0]: pdf for pdf in source_docs}
 
-        print('time to fetch pdfs:', time.time()-start)
+        print('time to fetch source_docs:', time.time()-start)
 
 
     # Construct results

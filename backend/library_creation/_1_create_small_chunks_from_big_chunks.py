@@ -131,12 +131,12 @@ def cut_text_into_small_chunks(text, tokenizer, big_chunk_id, chunk_max_length):
     return small_chunks
 
 @reconnect_on_failure
-def insert_small_chunks_into_db(library, username, cursor):
+def insert_small_chunks_into_db(library, username, cursor, connection=None):
 
     cursor.execute("SELECT id, pdf_id, page_content FROM big_chunks where library=%s AND username=%s", (library, username))
     big_chunks = cursor.fetchall()
     for i, big_chunk in enumerate(big_chunks):
-        # print(f'processing big chunk {i}/{len(big_chunks)}')
+        print(f'processing big chunk {i}/{len(big_chunks)}')
         # print(big_chunk)
         big_chunk_id, pdf_id, page_content = big_chunk
 
@@ -144,7 +144,9 @@ def insert_small_chunks_into_db(library, username, cursor):
         cursor.execute("SELECT id FROM small_chunks WHERE big_chunk_id=%s AND library=%s AND username=%s",
                   (big_chunk_id, library, username))
         if cursor.fetchone():
+            print(f'small chunks for big chunk {big_chunk_id} already exist')
             continue
+
         small_chunks = cut_text_into_small_chunks(page_content, openai_tokenizer, big_chunk_id, 500)
         for small_chunk in small_chunks:
             cursor.execute(
@@ -154,6 +156,9 @@ def insert_small_chunks_into_db(library, username, cursor):
                 (small_chunk.big_chunk_id, small_chunk.chunk_number, small_chunk.chunk_content,
                  small_chunk.language_detected, small_chunk.en_chunk_content, library, username, small_chunk.n_token)
             )
+            if connection:
+                connection.commit()
+
 
 
 

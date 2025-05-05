@@ -4,14 +4,14 @@ from starlette.responses import StreamingResponse
 import io
 
 router = APIRouter(
-    prefix="/pdfs",
-    tags=["pdfs"]  # This will group your library endpoints in the FastAPI docs
+    prefix="/source_docs",
+    tags=["source_docs"]  # This will group your library endpoints in the FastAPI docs
 )
 
 
 def get_pdf_blob_from_db_online(pdf_id):
     conn, cursor = initialize_all_connection()
-    cursor.execute("SELECT file FROM pdfs WHERE id=%s", (pdf_id,))
+    cursor.execute("SELECT file FROM source_docs WHERE id=%s", (pdf_id,))
     pdf_blob = cursor.fetchone()[0]
     conn.close()
     return pdf_blob

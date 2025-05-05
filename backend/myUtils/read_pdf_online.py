@@ -9,7 +9,7 @@ from langchain.schema import Document
 
 def read_pdf_from_db_online(id, cursor):
 
-    cursor.execute("SELECT file FROM pdfs WHERE id=%s", (id,))
+    cursor.execute("SELECT file FROM source_docs WHERE id=%s", (id,))
     pdf = cursor.fetchone()
     if pdf is None:
         print(f"pdf with id {id} not found")

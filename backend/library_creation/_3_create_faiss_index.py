@@ -165,6 +165,7 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
         s = time.time()
         cursor.execute("SELECT id FROM embeddings_models WHERE model_name=%s AND language=%s", (model_name, language))
         model_id = cursor.fetchone()[0]
+        print('model_id:', model_id)
         print('time to get model_id:', time.time() - s)
 
         # Initialize Redis managers for different data types
@@ -175,23 +176,33 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
         index_key = f"faiss:index:{model_id}:{library}:{username}"
         embedding_key = f"faiss:embeddings:{model_id}:{library}:{username}"
 
-        # Try user-specific index first
-        index_bytes = binary_redis.redis_client.get(index_key)
-        embedding_ids_json = string_redis.redis_client.get(embedding_key)
+        index_bytes = None
+        try:
+            # Try user-specific index first
+            index_bytes = binary_redis.redis_client.get(index_key)
+            embedding_ids_json = string_redis.redis_client.get(embedding_key)
+        except Exception as e:
+            print('Error retrieving index from redis', e)
+
+        print('index_bytes:', index_bytes)
+
 
         # If not found, try all_users
-        if index_bytes is None:
-            all_users_index_key = f"faiss:index:{model_id}:{library}:all_users"
-            all_users_embedding_key = f"faiss:embeddings:{model_id}:{library}:all_users"
-            index_bytes = binary_redis.redis_client.get(all_users_index_key)
-            embedding_ids_json = string_redis.redis_client.get(all_users_embedding_key)
+        try:
+            if index_bytes is None:
+                all_users_index_key = f"faiss:index:{model_id}:{library}:all_users"
+                all_users_embedding_key = f"faiss:embeddings:{model_id}:{library}:all_users"
+                index_bytes = binary_redis.redis_client.get(all_users_index_key)
+                embedding_ids_json = string_redis.redis_client.get(all_users_embedding_key)
 
-        if index_bytes and embedding_ids_json:
-            print('getting faiss index from redis')
-            index_array = np.frombuffer(index_bytes, dtype=np.uint8)
-            index = faiss.deserialize_index(index_array)
-            embedding_ids = json.loads(embedding_ids_json)
-            return index, embedding_ids
+            if index_bytes and embedding_ids_json:
+                print('getting faiss index from redis')
+                index_array = np.frombuffer(index_bytes, dtype=np.uint8)
+                index = faiss.deserialize_index(index_array)
+                embedding_ids = json.loads(embedding_ids_json)
+                return index, embedding_ids
+        except Exception as e:
+            print('Error retrieving faiss index from redis', e)
 
         # If not in Redis, retrieve from MySQL DB
         print('getting faiss index from online db')
@@ -203,6 +214,7 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
 
         result = cursor.fetchone()
         if result is None:
+            print('result is None')
             return None, None
 
         embedding_ids_json = result[0]
@@ -226,18 +238,23 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
         os.unlink(temp_file_path)
 
         embedding_ids = json.loads(embedding_ids_json)
+        try:
+            # Store in Redis for future use
+            print('storing faiss index in redis')
+            index_bytes = faiss.serialize_index(index)
+            # Convert numpy array to bytes before storing in Redis
+            index_bytes_redis = bytes(index_bytes)  # Convert numpy array to bytes
 
-        # Store in Redis for future use
-        print('storing faiss index in redis')
-        index_bytes = faiss.serialize_index(index)
-        # Convert numpy array to bytes before storing in Redis
-        index_bytes_redis = bytes(index_bytes)  # Convert numpy array to bytes
-        binary_redis.redis_client.set(index_key, index_bytes_redis)
-        string_redis.redis_client.set(embedding_key, embedding_ids_json)
 
-        # Set expiry time
-        binary_redis.redis_client.expire(index_key, 4 * 3600)
-        string_redis.redis_client.expire(embedding_key, 4 * 3600)
+            binary_redis.redis_client.set(index_key, index_bytes_redis)
+            string_redis.redis_client.set(embedding_key, embedding_ids_json)
+
+            # Set expiry time
+            binary_redis.redis_client.expire(index_key, 4 * 3600)
+            string_redis.redis_client.expire(embedding_key, 4 * 3600)
+
+        except Exception as e:
+            print('Error storing faiss index in redis', e)
 
         return index, embedding_ids
 

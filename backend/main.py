@@ -43,13 +43,15 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-from routes import auth, libraries, progress, websocket_connections, pdfs
+from routes import auth, libraries, progress, websocket_connections, source_docs, search_without_llm
 
 app.include_router(auth.router)
 app.include_router(libraries.router)
 app.include_router(progress.router)
 app.include_router(websocket_connections.router)
-app.include_router(pdfs.router)
+app.include_router(source_docs.router)
+
+app.include_router(search_without_llm.router)
 
 # Print routes only once during startup
 def print_routes():

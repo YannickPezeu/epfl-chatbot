@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import styles from '../RH_chatbot_prototype/Personal.module.css';
+import styles from '../VPH_chatbot_prototype/Personal.module.css';
 import SignupModal from '../components/SignupModal/SignupModal';
 import Main from '../components/Main/Main';
 import {useStore} from '../store';

@@ -68,7 +68,7 @@ class HrSpider(scrapy.Spider):
 
     def has_page_changed_from_db(self, response):
         new_checksum = self.generate_checksum(response.text)
-        self.cursor.execute("SELECT checksum FROM pdfs WHERE url=%s", (response.url,))
+        self.cursor.execute("SELECT checksum FROM source_docs WHERE url=%s", (response.url,))
         stored_checksum = self.cursor.fetchone()
         if stored_checksum:
             has_changed, new_checksum = self.has_page_changed(new_checksum, stored_checksum[0])
@@ -194,7 +194,7 @@ class HrSpider(scrapy.Spider):
 
         if not redo:
             #check if url is already in db
-            self.cursor.execute("SELECT url FROM pdfs WHERE url=%s", (url,))
+            self.cursor.execute("SELECT url FROM source_docs WHERE url=%s", (url,))
             if self.cursor.fetchone():
                 return
 
@@ -277,7 +277,7 @@ class HrSpider(scrapy.Spider):
                         mypdf = f.read()
 
                     self.cursor.execute(
-                        "INSERT INTO pdfs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                        "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                         (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), url, str(lex_number)+'_'+title, breadCrumb,
                          '', 'LEX', 'all_users'))
 
@@ -329,7 +329,7 @@ class HrSpider(scrapy.Spider):
 
         # insert into database
         self.cursor.execute(
-            "INSERT INTO pdfs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s )",
+            "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s )",
             (pdf_file[0].getbuffer(), date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), response.url,
              title, breadCrumb,
              new_checksum, 'LEX', 'all_users'))

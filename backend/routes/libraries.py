@@ -12,7 +12,7 @@ import os
 import sqlite3
 
 
-from library_creation._0_create_big_chunks_from_pdfs import insert_big_chunks_into_db
+from library_creation._0_create_big_chunks_from_source_docs import insert_big_chunks_into_db
 from library_creation._1_create_small_chunks_from_big_chunks import insert_small_chunks_into_db
 from library_creation._2_embedd_small_chunks import dtypes_for_models, insert_embeddings_models_into_db, embedd_all_small_chunks
 from library_creation._3_create_faiss_index import create_faiss_index
@@ -29,22 +29,79 @@ router = APIRouter(
 )
 
 
-
 @router.delete("/{library_name}")  # RESTful way to delete a resource
 def delete_library(library_name: str, session_token: str = Cookie(None)):
     username = get_username_from_session_token(session_token)
 
+    # Database deletion
     conn, cursor = initialize_all_connection()
     cursor.execute("DELETE FROM user_libraries WHERE library_name=%s AND username=%s", (library_name, username))
-    # cursor.execute("DELETE FROM pdfs WHERE library=%s AND username=%s", (library_name, username))
+    # cursor.execute("DELETE FROM source_docs WHERE library=%s AND username=%s", (library_name, username))
     cursor.execute("DELETE FROM big_chunks WHERE library=%s AND username=%s", (library_name, username))
     cursor.execute("DELETE FROM small_chunks WHERE library=%s AND username=%s", (library_name, username))
     cursor.execute("DELETE FROM embeddings WHERE library=%s AND username=%s", (library_name, username))
+
+    # Query model_ids before deleting metadata
+    cursor.execute(
+        "SELECT DISTINCT model_id FROM faiss_index_metadata WHERE library=%s AND (username=%s OR username='all_users')",
+        (library_name, username))
+    model_ids = [row[0] for row in cursor.fetchall()]
+
     cursor.execute("DELETE FROM faiss_indexes WHERE library=%s AND username=%s", (library_name, username))
     cursor.execute("DELETE FROM faiss_index_metadata WHERE library=%s AND username=%s", (library_name, username))
     cursor.execute("DELETE FROM faiss_index_parts WHERE library=%s AND username=%s", (library_name, username))
     conn.commit()
     conn.close()
+
+    # Delete from Redis - Using the same approach as your reference code
+    # Initialize Redis managers for different data types
+    string_redis = RedisStateManager(decode_responses=True)  # For JSON/string data
+    binary_redis = RedisStateManager(decode_responses=False)  # For binary data
+
+    # Delete FAISS indexes from Redis
+    for model_id in model_ids:
+        # Check both user-specific and all_users indexes
+        for index_username in [username, "all_users"]:
+            # Create the keys
+            index_key = f"faiss:index:{model_id}:{library_name}:{index_username}"
+            embedding_key = f"faiss:embeddings:{model_id}:{library_name}:{index_username}"
+
+            # Check if keys exist and delete if they do
+            index_exists = binary_redis.redis_client.exists(index_key)
+            embedding_exists = string_redis.redis_client.exists(embedding_key)
+
+            if index_exists:
+                binary_redis.redis_client.delete(index_key)
+                print(f"Deleted index key: {index_key}")
+
+            if embedding_exists:
+                string_redis.redis_client.delete(embedding_key)
+                print(f"Deleted embedding key: {embedding_key}")
+
+    # Handle uploaded files and agent sessions
+    redis_manager = RedisStateManager()
+
+    # Get all active connections for this user
+    active_connections = redis_manager.get_state(f"user_connections:{username}") or []
+
+    # For each active connection, clean up any library-related data
+    for connection_id in active_connections:
+        # Clear any uploaded files related to this library
+        uploaded_files = redis_manager.get_state(f"uploaded_files:{connection_id}") or []
+        updated_files = [f for f in uploaded_files if f.get('library') != library_name]
+
+        if len(updated_files) != len(uploaded_files):
+            redis_manager.set_state(f"uploaded_files:{connection_id}", updated_files)
+
+        # Update any agent sessions using this library
+        agent_session_key = f"agent_session:{connection_id}"
+        session_data = redis_manager.get_state(agent_session_key)
+
+        if session_data and session_data.get('library') == library_name:
+            redis_manager.delete_state(agent_session_key)
+
+    # Delete any library-specific Redis keys
+    redis_manager.delete_state(f"library_metadata:{username}:{library_name}")
 
     return {"message": f"Library '{library_name}' deleted successfully"}
 
@@ -56,10 +113,10 @@ def insert_user_library(username, library_name, special_prompt=None, cursor=None
     if cursor is None:
         conn, cursor = initialize_all_connection()
 
-    #retrieve pdfs content from the database and create a summary
+    #retrieve source_docs content from the database and create a summary
     cursor.execute("SELECT page_content FROM big_chunks WHERE library=%s AND page_number=0", (library_name,))
-    pdfs_content = cursor.fetchall()
-    text_to_summarize = [pdf_content[0] for pdf_content in pdfs_content]
+    source_docs_content = cursor.fetchall()
+    text_to_summarize = [pdf_content[0] for pdf_content in source_docs_content]
     text_to_summarize = '\n\n'.join(text_to_summarize)
     prompt = f"""
     Summarize the content of the database {library_name}, 
@@ -131,19 +188,21 @@ redis_state_manager = RedisStateManager()
 
 
 
-def process_pdf_files_into_pdfs_table(username, temp_file_paths, library_name: str, cursor):
+def process_pdf_files_into_source_docs_table(username, temp_file_paths, library_name: str, cursor):
     for temp_path, original_filename in temp_file_paths:
-        # print('Processing file:', original_filename)
+        print('Processing file:', original_filename)
 
         with open(temp_path, "rb") as f:
             file_content = f.read()
 
         cursor.execute(
-            "INSERT IGNORE INTO pdfs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "INSERT IGNORE INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (file_content, 'unknown', datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'unknown',
              original_filename, 'unknown',
              '', library_name, username)
         )
+
+
 
 
 @handle_openai_errors
@@ -160,9 +219,9 @@ async def process_library_creation(task_id, username, library_name, temp_file_pa
         with ThreadPoolExecutor() as pool:
             conn, cursor = await loop.run_in_executor(pool, initialize_all_connection)
 
-            # progress_data[task_id] = {"status": "Processing PDFs", "progress": 10}
-            redis_state_manager.set_state(task_id, {"status": "Processing PDFs", "progress": 10})
-            await loop.run_in_executor(pool, process_pdf_files_into_pdfs_table, username, temp_file_paths, library_name, cursor)
+            # progress_data[task_id] = {"status": "Processing source_docs", "progress": 10}
+            redis_state_manager.set_state(task_id, {"status": "Processing source_docs", "progress": 10})
+            await loop.run_in_executor(pool, process_pdf_files_into_source_docs_table, username, temp_file_paths, library_name, cursor)
             await loop.run_in_executor(pool, conn.commit)
 
             # progress_data[task_id] = {"status": "Inserting big chunks", "progress": 30}
@@ -192,7 +251,7 @@ async def process_library_creation(task_id, username, library_name, temp_file_pa
                 openai_key, openai_key_status = await loop.run_in_executor(pool, get_openai_key, username)
                 # progress_data[task_id] = {"status": "Embedding small chunks", "progress": 80, "price": price}
                 redis_state_manager.set_state(task_id, {"status": "Embedding small chunks", "progress": 80, "price": price})
-                await loop.run_in_executor(pool, embedd_all_small_chunks, library_name, model_name, language, username, cursor, 50, None, openai_key)
+                await loop.run_in_executor(pool, embedd_all_small_chunks, library_name, model_name, language, username, cursor, conn, 50, None, openai_key)
                 await loop.run_in_executor(pool, conn.commit)
 
                 # progress_data[task_id] = {"status": "Creating FAISS index", "progress": 90, "price": price}
@@ -284,7 +343,7 @@ if __name__ == '__main__':
 
         conn, cursor = initialize_all_connection()
         cursor.execute("DELETE FROM user_libraries WHERE library_name=%s AND username=%s", (library_name, username))
-        cursor.execute("DELETE FROM pdfs WHERE library=%s AND username=%s", (library_name, username))
+        cursor.execute("DELETE FROM source_docs WHERE library=%s AND username=%s", (library_name, username))
         cursor.execute("DELETE FROM big_chunks WHERE library=%s AND username=%s", (library_name, username))
         cursor.execute("DELETE FROM small_chunks WHERE library=%s AND username=%s", (library_name, username))
         cursor.execute("DELETE FROM embeddings WHERE library=%s AND username=%s", (library_name, username))

@@ -9,16 +9,16 @@ import os
 dotenv.load_dotenv(dotenv_path='C:\Dev\ChatFinderBackEnd\.env')
 openai_key = os.getenv('OPENAI_KEY')
 
-def filter_pdfs(cursor, openai_key):
-    cursor.execute("SELECT id, title FROM pdfs where library = 'LEX AND RH'")
-    pdfs = cursor.fetchall()
-    for pdf in pdfs:
-        pdf_id, title = pdf
+def filter_source_docs(cursor, openai_key):
+    cursor.execute("SELECT id, title FROM source_docs where library = 'LEX AND RH'")
+    source_docs = cursor.fetchall()
+    for source_doc in source_docs:
+        source_doc_id, title = source_doc
         if title.endswith('.pdf') or title.endswith('.docx'):
             continue
         else:
             print('reading pdf', title)
-            pages = read_pdf_from_db_online(pdf_id, cursor)
+            pages = read_pdf_from_db_online(source_doc_id, cursor)
             if len(pages) > 2:
                 continue
             else:
@@ -43,12 +43,12 @@ def filter_pdfs(cursor, openai_key):
                 print('response:', response)
 
                 if not response:
-                    delete_pdf(cursor, pdf_id)
+                    delete_pdf(cursor, source_doc_id)
 
 
 def delete_pdf(cursor, pdf_id):
     print(f"Deleting pdf with id {pdf_id}")
-    cursor.execute("DELETE FROM pdfs WHERE id=%s", (pdf_id,))
+    cursor.execute("DELETE FROM source_docs WHERE id=%s", (pdf_id,))
     # get big_chunks ids corresponding to the pdf_id
     cursor.execute("SELECT id FROM big_chunks WHERE pdf_id=%s", (pdf_id,))
     big_chunks_ids = cursor.fetchall()
@@ -73,7 +73,7 @@ def delete_pdf(cursor, pdf_id):
 if __name__ == '__main__':
     conn, cursor = initialize_all_connection()
     openai_key = os.getenv('OPENAI_KEY')
-    filter_pdfs(cursor, openai_key)
+    filter_source_docs(cursor, openai_key)
 
 
 

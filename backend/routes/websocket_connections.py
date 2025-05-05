@@ -577,7 +577,7 @@ async def create_new_ws_connection(
                 rerank=rerank,
                 special_prompt=special_prompt,
                 conversation_id=conversation_id,
-                use_local_llm=True
+                use_local_llm=False
                 )
 
 

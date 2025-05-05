@@ -132,14 +132,15 @@ def embedd_multiple_small_chunks(model_name, small_chunk_ids, cursor, mistral_ke
     return embeddings_list
 
 @reconnect_on_failure
-def embedd_all_small_chunks(library, model_name, language, username, cursor, step_size=50, mistral_key=None, openai_key=None):
+def embedd_all_small_chunks(library, model_name, language, username, cursor, connection, step_size=50, mistral_key=None, openai_key=None):
 
+    print('embedd all small chunks')
     cursor.execute("SELECT id FROM small_chunks where library=%s AND username=%s ORDER BY id", (library, username))
-
+    print(f'executing query SELECT id FROM small_chunks where library={library} AND username={username} ORDER BY id')
     small_chunk_ids = cursor.fetchall()
     small_chunk_ids = [small_chunk_id[0] for small_chunk_id in small_chunk_ids]
 
-    # print('small_chunk_ids', small_chunk_ids)
+    print('small_chunk_ids', small_chunk_ids)
 
     for i in range(0, len(small_chunk_ids), step_size):
         small_chunk_group = small_chunk_ids[i:i + step_size]
@@ -151,9 +152,10 @@ def embedd_all_small_chunks(library, model_name, language, username, cursor, ste
                 embedding = embeddings[j][np.newaxis, :]
                 embedding_bytes = embedding.tobytes()
                 insert_embeddings_into_db(library, model_name, language, small_chunk_id, embedding_bytes, username, cursor)
+                connection.commit()
         except Exception as e:
 
-            # print(f'Error embedding small chunk {small_chunk_group}', e)
+            print(f'Error embedding small chunk {small_chunk_group}', e)
             #print traceback
 
 
@@ -165,6 +167,7 @@ def embedd_all_small_chunks(library, model_name, language, username, cursor, ste
                     insert_embeddings_into_db(library, model_name, language, small_chunk_id, embedding_bytes, username, cursor)
                 except Exception as e:
                     print(f'Error embedding small chunk {small_chunk_id}')
+            connection.commit()
             # print(e)
 
 
@@ -201,6 +204,7 @@ dtypes_for_models = {
     'gte': 'float32',
     'embaas': 'float32',
     'fr_long_context': 'float32',
+    'rcp': 'float64'
 }
 
 if __name__ == '__main__':

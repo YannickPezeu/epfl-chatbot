@@ -94,7 +94,7 @@ class LexSpider(scrapy.Spider):
     c = conn.cursor()
 
     # Create table
-    c.execute("""CREATE TABLE IF NOT EXISTS pdfs (
+    c.execute("""CREATE TABLE IF NOT EXISTS source_docs (
     id INTEGER PRIMARY KEY,
     file BLOB,
     date_detected TEXT,
@@ -120,7 +120,7 @@ class LexSpider(scrapy.Spider):
 
     def has_page_changed_from_db(self, response):
         new_checksum = self.generate_checksum(response.text)
-        self.c.execute("SELECT checksum FROM pdfs WHERE url=?", (response.url,))
+        self.c.execute("SELECT checksum FROM source_docs WHERE url=?", (response.url,))
         stored_checksum = self.c.fetchone()
         if stored_checksum:
             has_changed, new_checksum = self.has_page_changed(new_checksum, stored_checksum[0])
@@ -246,7 +246,7 @@ class LexSpider(scrapy.Spider):
 
         if not redo:
             #check if url is already in db
-            self.c.execute("SELECT url FROM pdfs WHERE url=?", (url,))
+            self.c.execute("SELECT url FROM source_docs WHERE url=?", (url,))
             if self.c.fetchone():
                 return
 
@@ -329,7 +329,7 @@ class LexSpider(scrapy.Spider):
                         mypdf = f.read()
 
                     self.c.execute(
-                        "INSERT INTO pdfs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), url, str(lex_number)+'_'+title, breadCrumb,
                          ''))
 
@@ -381,7 +381,7 @@ class LexSpider(scrapy.Spider):
 
         # insert into database
         self.c.execute(
-            "INSERT INTO pdfs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (pdf_file[0].getbuffer(), date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), response.url,
              title, breadCrumb,
              new_checksum))
@@ -422,7 +422,7 @@ class LexSpider(scrapy.Spider):
 
         # insert into database
         self.c.execute(
-            "INSERT INTO pdfs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), response.url, filename, '',
              ''))
 
