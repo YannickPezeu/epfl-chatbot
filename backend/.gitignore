@@ -1,6 +1,7 @@
 .env
 /tests/*
 ssh
+/backend/runai_code
 
 csv
 
