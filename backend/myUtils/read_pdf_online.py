@@ -47,6 +47,35 @@ def read_source_doc_from_db_online(id, cursor):
 
         return pages
 
+    elif doc_type == "text":
+        try:
+            # Handle text content (from local text files)
+            if isinstance(content, bytes):
+                raw_text = content.decode('utf-8')
+            else:
+                raw_text = content
+
+            # Use tiktoken to split the text into chunks of approximately 1000 tokens
+            tiktoken_encoding = tiktoken.get_encoding("cl100k_base")
+            tokens = tiktoken_encoding.encode(raw_text)
+
+            # Split into chunks of 1000 tokens
+            pages_tokenized = [tokens[i:i + 1000] for i in range(0, len(tokens), 1000)]
+
+            # Create Document objects for each chunk, similar to the PDF format
+            pages = []
+            for i, page_tokens in enumerate(pages_tokenized, start=1):
+                page_content = tiktoken_encoding.decode(page_tokens)
+                # Create a Document object with the same structure as those returned by read_pdf
+                page_doc = Document(page_content=page_content, metadata={'page': i})
+                pages.append(page_doc)
+
+            return pages
+
+        except Exception as e:
+            logger.error(f"Error processing text document (id={id}): {e}")
+            return []
+
     elif doc_type == "json":
         try:
             # Parse binary content as JSON
@@ -92,7 +121,6 @@ def read_source_doc_from_db_online(id, cursor):
     else:
         logger.error('doc_type not recognized')
         raise Exception(f"doc_type '{doc_type}' not recognized")
-
 
 def read_pdf(pdf_path):
     '''returns a list of pages from the pdf file

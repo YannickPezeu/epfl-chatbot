@@ -11,7 +11,7 @@ dotenv.load_dotenv(dotenv.find_dotenv())
 mistral_key = os.getenv('MISTRAL_KEY')
 openai_key = os.getenv('OPENAI_KEY')
 
-def create_library_from_pdf_table(library_name, username, model):
+def create_library_from_source_docs_table(library_name, username, model):
     conn, cursor = initialize_all_connection()
     print(
         f"Creating library '{library_name}' from source_docs table. for user {username} and model {model} This may take a while depending on the number of source_docs in the table.")
@@ -60,7 +60,6 @@ def create_library_from_pdf_table(library_name, username, model):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 def update_library_with_minimal_downtime(source_library, username, model=None):
     """
     Updates a library with fresh data from source_docs for a specific username and model while minimizing downtime.
@@ -74,7 +73,7 @@ def update_library_with_minimal_downtime(source_library, username, model=None):
         dict: A dictionary containing success status and message
     """
     conn, cursor = initialize_all_connection()
-    temp_library = f"{source_library}_{username}_temp"
+    temp_library = f"{source_library}_{username}_{model}temp"
     model_id = None
 
     try:
@@ -115,7 +114,7 @@ def update_library_with_minimal_downtime(source_library, username, model=None):
 
         # Step 3: Process temp_library to create all derivative data
         print(f"Processing '{temp_library}' for user '{username}' to create derivative data...")
-        create_library_from_pdf_table(temp_library, username, model)  # Pass model name to this function
+        create_library_from_source_docs_table(temp_library, username, model)  # Pass model name to this function
         print(f"Finished processing '{temp_library}' for user '{username}'")
 
         # Step 4: Find all tables with both 'library' and 'username' columns
@@ -233,11 +232,268 @@ def update_library_with_minimal_downtime(source_library, username, model=None):
             conn.close()
             print("Database connection closed")
 
+
+import os
+import hashlib
+from datetime import datetime
+from pathlib import Path
+
+
+def create_source_docs_from_local_files(library_name, username, text_folder_path, pdf_folder_path):
+    """
+    Creates source_docs entries from local text files and PDFs.
+
+    Args:
+        library_name (str): The name of the library to create
+        username (str): The username to associate with the documents
+        text_folder_path (str): Path to folder containing text files
+        pdf_folder_path (str): Path to folder containing PDF files
+
+    Returns:
+        dict: Success status and processing results
+    """
+    conn, cursor = initialize_all_connection()
+
+    try:
+        processed_files = 0
+        skipped_files = 0
+        errors = []
+
+        print(f"Creating source_docs from local files for library '{library_name}' and user '{username}'...")
+
+        # Process text files
+        if os.path.exists(text_folder_path):
+            print(f"Processing text files from: {text_folder_path}")
+
+            for filename in os.listdir(text_folder_path):
+                if filename.endswith('.txt'):
+                    file_path = os.path.join(text_folder_path, filename)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as file:
+                            content = file.read()
+
+                        # Extract URL and Title from first two lines
+                        lines = content.split('\n')
+                        if len(lines) >= 2:
+                            url_line = lines[0].strip()
+                            title_line = lines[1].strip()
+
+                            # Extract URL (remove "URL: " prefix if present)
+                            url = url_line.replace('URL: ', '') if url_line.startswith('URL: ') else url_line
+
+                            # Extract Title (remove "Title: " prefix if present)
+                            title = title_line.replace('Title: ', '') if title_line.startswith(
+                                'Title: ') else title_line
+
+                            # Calculate checksum
+                            checksum = hashlib.md5(content.encode('utf-8')).hexdigest()
+
+                            # Get file modification time
+                            file_stat = os.stat(file_path)
+                            date_detected = datetime.fromtimestamp(file_stat.st_mtime)
+
+                            # Insert into database
+                            cursor.execute("""
+                                INSERT INTO source_docs 
+                                (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username, doc_type)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON DUPLICATE KEY UPDATE
+                                date_detected = VALUES(date_detected),
+                                date_extracted = VALUES(date_extracted),
+                                title = VALUES(title),
+                                breadCrumb = VALUES(breadCrumb)
+                            """, (
+                                content,  # file content
+                                date_detected,  # date_detected
+                                datetime.now(),  # date_extracted
+                                url,  # url
+                                title,  # title
+                                '',  # breadCrumb (empty for now)
+                                checksum,  # checksum
+                                library_name,  # library
+                                username,  # username
+                                'text'  # doc_type
+                            ))
+
+                            processed_files += 1
+                            print(f"Processed text file: {filename} - URL: {url[:50]}...")
+                        else:
+                            skipped_files += 1
+                            errors.append(f"Text file {filename}: Not enough lines to extract URL and title")
+
+                    except Exception as e:
+                        skipped_files += 1
+                        errors.append(f"Error processing text file {filename}: {str(e)}")
+
+        # Process PDF files
+        if os.path.exists(pdf_folder_path):
+            print(f"Processing PDF files from: {pdf_folder_path}")
+
+            for filename in os.listdir(pdf_folder_path):
+                if filename.lower().endswith('.pdf'):
+                    file_path = os.path.join(pdf_folder_path, filename)
+                    try:
+                        # Read PDF as binary
+                        with open(file_path, 'rb') as file:
+                            content = file.read()
+
+                        # Use filename (without extension) as title
+                        title = Path(filename).stem
+
+                        # Calculate checksum
+                        checksum = hashlib.md5(content).hexdigest()
+
+                        # Get file modification time
+                        file_stat = os.stat(file_path)
+                        date_detected = datetime.fromtimestamp(file_stat.st_mtime)
+
+                        # Insert into database
+                        cursor.execute("""
+                            INSERT INTO source_docs 
+                            (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username, doc_type)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON DUPLICATE KEY UPDATE
+                            date_detected = VALUES(date_detected),
+                            date_extracted = VALUES(date_extracted),
+                            title = VALUES(title),
+                            breadCrumb = VALUES(breadCrumb)
+                        """, (
+                            content,  # file content (binary for PDF)
+                            date_detected,  # date_detected
+                            datetime.now(),  # date_extracted
+                            f"file://{file_path}",  # url (local file path)
+                            title,  # title
+                            '',  # breadCrumb (empty for now)
+                            checksum,  # checksum
+                            library_name,  # library
+                            username,  # username
+                            'pdf'  # doc_type
+                        ))
+
+                        processed_files += 1
+                        print(f"Processed PDF file: {filename} - Title: {title}")
+
+                    except Exception as e:
+                        skipped_files += 1
+                        errors.append(f"Error processing PDF file {filename}: {str(e)}")
+
+        # Commit all changes
+        conn.commit()
+
+        print(f"\nProcessing complete!")
+        print(f"Processed files: {processed_files}")
+        print(f"Skipped files: {skipped_files}")
+
+        if errors:
+            print(f"Errors encountered:")
+            for error in errors[:10]:  # Show first 10 errors
+                print(f"  - {error}")
+            if len(errors) > 10:
+                print(f"  ... and {len(errors) - 10} more errors")
+
+        return {
+            "success": True,
+            "library_name": library_name,
+            "username": username,
+            "processed_files": processed_files,
+            "skipped_files": skipped_files,
+            "errors": errors,
+            "message": f"Successfully processed {processed_files} files into library '{library_name}'"
+        }
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Error during processing: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "library_name": library_name,
+            "username": username,
+            "message": f"Error processing files: {str(e)}"
+        }
+    finally:
+        if conn:
+            conn.close()
+            print("Database connection closed")
+
+
+def create_library_from_local_files(library_name, username, model, text_folder_path, pdf_folder_path):
+    """
+    Complete function to create a library from local files and process it.
+
+    Args:
+        library_name (str): The name of the library to create
+        username (str): The username to associate with the documents
+        model (str): The model name for embeddings
+        text_folder_path (str): Path to folder containing text files
+        pdf_folder_path (str): Path to folder containing PDF files
+
+    Returns:
+        dict: Success status and processing results
+    """
+    try:
+        # Step 1: Create source_docs from local files
+        print("Step 1: Creating source_docs from local files...")
+        result = create_source_docs_from_local_files(library_name, username, text_folder_path, pdf_folder_path)
+
+        if not result["success"]:
+            return result
+
+        print(f"Successfully created {result['processed_files']} source_docs entries")
+
+        # Step 2: Process the library (create chunks, embeddings, etc.)
+        print("Step 2: Processing library to create chunks and embeddings...")
+        library_result = create_library_from_source_docs_table(library_name, username, model)
+
+        if library_result["success"]:
+            return {
+                "success": True,
+                "library_name": library_name,
+                "username": username,
+                "model": model,
+                "files_processed": result['processed_files'],
+                "files_skipped": result['skipped_files'],
+                "errors": result['errors'],
+                "message": f"Successfully created and processed library '{library_name}' with {result['processed_files']} files"
+            }
+        else:
+            return library_result
+
+    except Exception as e:
+        print(f"Error in create_library_from_local_files: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "library_name": library_name,
+            "username": username,
+            "message": f"Error creating library from local files: {str(e)}"
+        }
+
+
+# Example usage:
+if __name__ == "__main__":
+    # Define your paths
+    text_folder = r".\puppeteer_scraper_full_epfl\epfl_full_site_data2\text"
+    pdf_folder = r".\puppeteer_scraper_full_epfl\epfl_full_site_data2\downloads"
+
+    # Create the library
+    result = create_library_from_local_files(
+        library_name="epfl_documents",
+        username="your_username",
+        model="your_model_name",
+        text_folder_path=text_folder,
+        pdf_folder_path=pdf_folder
+    )
+
+    print(f"Final result: {result}")
+
 if __name__ == '__main__':
 
     conn, cursor = initialize_all_connection()
 
-    # create_library_from_pdf_table('LEX')
-    # create_library_from_pdf_table('RH')
-    # create_library_from_pdf_table('LEX AND RH')
+    # create_library_from_source_docs_table('LEX')
+    # create_library_from_source_docs_table('RH')
+    # create_library_from_source_docs_table('LEX AND RH')
     update_library_with_minimal_downtime('LEX', 'all_users', 'openai')
