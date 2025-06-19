@@ -11,6 +11,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+
+from epfl_hr_scraper.scraper_utils.chromedriver import get_working_chromedriver_path
 
 
 class UrlToPdf:
@@ -126,11 +129,18 @@ class UrlToPdf:
         options.add_argument('--headless')
         options.add_argument('--disable-gpu')
 
-        self.driver = webdriver.Chrome(
-            service=ChromeService(
-                r"C:\Users\pezeu\.wdm\drivers\chromedriver\win64\134.0.6998.90\chromedriver-win32\chromedriver.exe"),
-            options=options
-        )
+        chromedriver_path = get_working_chromedriver_path()
+
+        if chromedriver_path:
+            print(f"Using ChromeDriver at: {chromedriver_path}")
+            service = Service(chromedriver_path)
+            newDriver = webdriver.Chrome(service=service, options=options)
+        else:
+            print("Could not find a working ChromeDriver, trying default configuration...")
+            # Last resort - try without specifying a driver path
+            newDriver = webdriver.Chrome(options=options)
+
+        self.driver = newDriver
 
         try:
             result = self._generate_source_docs()

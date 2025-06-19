@@ -310,16 +310,6 @@ def article_retrieval(kb_id, kb_title):
     """Test retrieving articles from a specific knowledge base and save to JSON file"""
     print(f"\n=== Testing article retrieval from '{kb_title}' (ID: {kb_id}) ===")
 
-    # Different parameter combinations to try
-    parameter_sets = [
-        {"kb_knowledge_base": kb_id, "workflow_state": "published", "active": "true"},
-        {"kb_knowledge_base": kb_id},
-        {"kb_knowledge_base": kb_id,
-         "sysparm_fields": "sys_id,short_description,text,kb_knowledge_base,workflow_state,active"},
-        {"sysparm_query": f"kb_knowledge_base={kb_id}^workflow_state=published^active=true"},
-        {"sysparm_query": f"kb_knowledge_base.sys_id={kb_id}^workflow_state=published^active=true"}
-    ]
-
     success = False
     articles_data = []
 

@@ -12,6 +12,9 @@ RUN npm ci
 # Copy the rest of the application code
 COPY . .
 
+# Debug: Check what we have
+RUN ls -la && echo "Checking for pages/app directories:" && find . -name "pages" -o -name "app" -type d
+
 # Clear any existing .next directory and build
 RUN rm -rf .next && \
     npm run build && \
@@ -28,17 +31,18 @@ ENV NODE_ENV=production
 USER root
 RUN apk --no-cache add curl wget python3 make g++
 
-# Copy files from builder stage - Fixed paths to use /app/
+# Copy package files first
 COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/next.config.mjs ./
-COPY --from=builder /app/server.js ./
 
-# Debug: Verify .next directory contents
-RUN ls -la .next && \
-    ls -la .next/static || true
+# Copy everything from builder (simpler and more reliable)
+COPY --from=builder /app .
+
+# Install only production dependencies
+RUN npm ci --only=production
+
+# Debug: Verify structure
+RUN echo "Final structure:" && ls -la && \
+    echo "Pages/App directories:" && find . -name "pages" -o -name "app" -type d
 
 # Ensure proper permissions
 RUN mkdir -p /app/.next/cache && \

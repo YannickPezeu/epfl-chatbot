@@ -150,7 +150,7 @@ async def check_openai_key(session_token: str = Cookie(None)):
 
 
 async def check_openai_key_helper(openai_key, username=None):
-    print('openai_key', openai_key)
+    # print('openai_key', openai_key)
     if openai_key is None:
         print('openai_key is None')
         return {"openaiKeyStatus": 'missing'}

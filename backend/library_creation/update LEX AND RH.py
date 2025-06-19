@@ -211,7 +211,7 @@ def main():
             deleted_count = delete_lex_and_rh_from_all_tables(cursor)
 
             # Step 2: Insert new rows into pdfs table
-            inserted_count = insert_lex_and_rh_to_pdfs(cursor)
+            inserted_count = insert_lex_and_rh_to_source_docs(cursor)
 
             # Summary before Step 3
             logger.info("\nIntermediate Summary:")

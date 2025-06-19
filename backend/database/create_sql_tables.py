@@ -89,13 +89,13 @@ def create_big_chunks_table(cursor, replace_table=False):
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS big_chunks (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        pdf_id INT NOT NULL,
+        source_id INT NOT NULL,
         page_number INT NOT NULL,
         page_content TEXT NOT NULL,
         three_page_content TEXT NOT NULL,
         library VARCHAR(255) NOT NULL,
         username VARCHAR(255) NOT NULL,
-        UNIQUE KEY (pdf_id, page_number, library)
+        UNIQUE KEY (source_id, page_number, library)
     ) ENGINE=InnoDB
     ''')
 
@@ -127,7 +127,8 @@ def create_source_docs_table_if_not_exists(cursor):
     checksum TEXT,
     library TEXT,
     username TEXT,
-    UNIQUE KEY unique_pdf (url(255), title(255), library(255), username(255))
+    doc_type TEXT,
+    UNIQUE KEY unique_source (url(255), title(255), library(255), username(255))
 );""")
 
 @reconnect_on_failure

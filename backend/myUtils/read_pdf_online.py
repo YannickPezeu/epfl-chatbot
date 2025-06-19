@@ -1,3 +1,6 @@
+import json
+
+import tiktoken
 from langchain_community.document_loaders import PyPDFLoader
 import os
 
@@ -6,35 +9,89 @@ import os
 from pdf2image import convert_from_path
 import pytesseract
 from langchain.schema import Document
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-def read_pdf_from_db_online(id, cursor):
 
-    cursor.execute("SELECT file FROM source_docs WHERE id=%s", (id,))
-    pdf = cursor.fetchone()
-    if pdf is None:
-        print(f"pdf with id {id} not found")
+
+def read_source_doc_from_db_online(id, cursor):
+    cursor.execute("SELECT file, doc_type FROM source_docs WHERE id=%s", (id,))
+    result = cursor.fetchone()
+    if result is None:
+        logger.info(f"Document with id {id} not found")
         return []
-    pdf = pdf[0]
+    content = result[0]
+    doc_type = result[1]
 
+    if doc_type == "pdf":
+        # Save the pdf in temp folder
+        temp_pdf_dir = "temp"
+        os.makedirs(temp_pdf_dir, exist_ok=True)
+        temp_pdf_path = os.path.join(temp_pdf_dir, f"{id}.pdf")
+        print('temp_pdf_path:', temp_pdf_path)
 
-    #save the pdf in temp folder
-    temp_pdf_dir = "temp"
-    os.makedirs(temp_pdf_dir, exist_ok=True)
-    temp_pdf_path = os.path.join(temp_pdf_dir, f"{id}.pdf")
-    print('temp_pdf_path:', temp_pdf_path)
+        # Write the binary content to a PDF file
+        with open(temp_pdf_path, 'wb') as f:
+            f.write(content)
 
-    # Write the binary content to a PDF file
-    with open(temp_pdf_path, 'wb') as f:
-        f.write(pdf)
+        logger.info('pdf saved')
 
-    print('pdf saved')
+        pages = read_pdf(temp_pdf_path)
 
-    pages = read_pdf(temp_pdf_path)
+        # Delete the pdf
+        os.remove(temp_pdf_path)
 
-    #delete the pdf
-    os.remove(temp_pdf_path)
+        return pages
 
-    return pages
+    elif doc_type == "json":
+        try:
+            # Parse binary content as JSON
+            json_content = json.loads(content)
+
+            # Extract text from the JSON article
+            article_title = json_content.get('article_title', '')
+            article_content = json_content.get('content', '')
+            article_url = json_content.get('article_url', '')
+            kb_id = json_content.get('kb_id', '')
+            kb_title = json_content.get('kb_title', '')
+
+            # Create a formatted text with all the relevant article information
+            raw_text = f"Title: {article_title}\n\n"
+            raw_text += f"KB: {kb_title} (ID: {kb_id})\n"
+            raw_text += f"URL: {article_url}\n\n"
+            raw_text += article_content
+
+            # If no content was found, use the entire JSON
+            if not article_content:
+                raw_text = json.dumps(json_content, indent=2)
+
+            # Use tiktoken to split the text into chunks of approximately 1000 tokens
+            tiktoken_encoding = tiktoken.get_encoding("cl100k_base")
+            tokens = tiktoken_encoding.encode(raw_text)
+
+            # Split into chunks of 1000 tokens
+            pages_tokenized = [tokens[i:i + 1000] for i in range(0, len(tokens), 1000)]
+
+            # Create Document objects for each chunk, similar to the PDF format
+            pages = []
+            for i, page_tokens in enumerate(pages_tokenized, start=1):
+                page_content = tiktoken_encoding.decode(page_tokens)
+                # Create a Document object with the same structure as those returned by read_pdf
+                page_doc = Document(page_content=page_content, metadata={'page': i})
+                pages.append(page_doc)
+
+            return pages
+
+        except Exception as e:
+            logger.error(f"Error processing JSON document (id={id}): {e}")
+            return []
+    else:
+        logger.error('doc_type not recognized')
+        raise Exception(f"doc_type '{doc_type}' not recognized")
 
 
 def read_pdf(pdf_path):

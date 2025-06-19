@@ -1,7 +1,7 @@
 import json
 
 from myUtils.connect_acad2 import initialize_all_connection
-from myUtils.read_pdf_online import read_pdf_from_db_online
+from myUtils.read_pdf_online import read_source_doc_from_db_online
 from myUtils.ask_chatGPT import ask_chatGPT
 import dotenv
 import os
@@ -18,7 +18,7 @@ def filter_source_docs(cursor, openai_key):
             continue
         else:
             print('reading pdf', title)
-            pages = read_pdf_from_db_online(source_doc_id, cursor)
+            pages = read_source_doc_from_db_online(source_doc_id, cursor)
             if len(pages) > 2:
                 continue
             else:
@@ -43,14 +43,14 @@ def filter_source_docs(cursor, openai_key):
                 print('response:', response)
 
                 if not response:
-                    delete_pdf(cursor, source_doc_id)
+                    delete_source_doc(cursor, source_doc_id)
 
 
-def delete_pdf(cursor, pdf_id):
-    print(f"Deleting pdf with id {pdf_id}")
-    cursor.execute("DELETE FROM source_docs WHERE id=%s", (pdf_id,))
-    # get big_chunks ids corresponding to the pdf_id
-    cursor.execute("SELECT id FROM big_chunks WHERE pdf_id=%s", (pdf_id,))
+def delete_source_doc(cursor, source_doc_id):
+    print(f"Deleting pdf with id {source_doc_id}")
+    cursor.execute("DELETE FROM source_docs WHERE id=%s", (source_doc_id,))
+    # get big_chunks ids corresponding to the source_doc_id
+    cursor.execute("SELECT id FROM big_chunks WHERE source_doc_id=%s", (source_doc_id,))
     big_chunks_ids = cursor.fetchall()
     big_chunks_ids = [big_chunk_id[0] for big_chunk_id in big_chunks_ids]
 
@@ -62,7 +62,7 @@ def delete_pdf(cursor, pdf_id):
         small_chunk_ids += small_chunk_ids_current
 
 
-    cursor.execute("DELETE FROM big_chunks WHERE pdf_id=%s", (pdf_id,))
+    cursor.execute("DELETE FROM big_chunks WHERE source_doc_id=%s", (source_doc_id,))
     for big_chunk_id in big_chunks_ids:
         cursor.execute("DELETE FROM small_chunks WHERE big_chunk_id=%s", (big_chunk_id,))
 

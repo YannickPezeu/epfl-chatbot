@@ -7,3 +7,4 @@ epfl_hr_scraper/
 temp/
 ../tests/
 local.db
+puppeteer_scraper_full_epfl/

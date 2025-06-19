@@ -13,6 +13,10 @@ import tempfile
 import os
 from myUtils.redisStateManager import RedisStateManager
 
+import logging
+import sys
+logging.basicConfig(stream=sys.stdout, level='INFO')
+log = logging.getLogger(__name__)
 
 def split_file(file_path, chunk_size=20 * 1024 * 1024):  # 20MB in bytes
     file_size = os.path.getsize(file_path)
@@ -182,9 +186,7 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
             index_bytes = binary_redis.redis_client.get(index_key)
             embedding_ids_json = string_redis.redis_client.get(embedding_key)
         except Exception as e:
-            print('Error retrieving index from redis', e)
-
-        print('index_bytes:', index_bytes)
+            log.error('Error retrieving index from redis', e, traceback.format_exc())
 
 
         # If not found, try all_users
@@ -254,7 +256,7 @@ def retrieve_faiss_index(model_name, language, library, username, cursor):
             string_redis.redis_client.expire(embedding_key, 4 * 3600)
 
         except Exception as e:
-            print('Error storing faiss index in redis', e)
+            print('Error storing faiss index in redis', e, traceback.format_exc())
 
         return index, embedding_ids
 

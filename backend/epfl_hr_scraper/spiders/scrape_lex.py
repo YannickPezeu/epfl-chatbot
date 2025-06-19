@@ -2,12 +2,14 @@ import datetime
 import hashlib
 import json
 
+import pymysql
 import scrapy
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 import sys
 import os
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -19,18 +21,15 @@ import sqlite3
 import re
 
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium import webdriver
 
-# This will force a fresh download of ChromeDriver
-# service = Service(executable_path=path_to_chromedriver)
-# service = Service(ChromeDriverManager().install())
-# driver = webdriver.Chrome(service=service)
-
+from epfl_hr_scraper.scraper_utils.chromedriver import get_working_chromedriver_path
 
 # Current file's directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
-
+print("current_dir", current_dir)
 # Directory two levels up from the current file
 root_project_dir = os.path.abspath(os.path.join(current_dir, '../../..'))
 print('parent_dir', root_project_dir)
@@ -38,49 +37,19 @@ print('parent_dir', root_project_dir)
 
 # Add the parent directory to sys.path
 sys.path.insert(0, root_project_dir)
+from myUtils.textExtractor import read_docx_pdf
 from myUtils.urlToPDF import UrlToPdf
+import pickle as pkl
 from docx2pdf import convert
+from myUtils.connect_acad2 import initialize_all_connection
 
-from selenium.webdriver.chrome.options import Options
-
-
-def get_chrome_driver():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-
-    base_dir = os.path.dirname(ChromeDriverManager().install())
-    driver_path = os.path.join(base_dir, "chromedriver.exe")
-
-    print(f"ChromeDriver path: {driver_path}")
-    print(f"Does file exist? {os.path.exists(driver_path)}")
-
-    service = Service(driver_path)
-
-    try:
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        return driver
-    except Exception as e:
-        print(f"Error initializing Chrome driver: {e}")
-        return None
-
-
-class LexSpider(scrapy.Spider):
-
-    def __init__(self, *args, **kwargs):
-        super(LexSpider, self).__init__(*args, **kwargs)
-        self.driver = get_chrome_driver()
-        if self.driver is None:
-            raise ValueError("Failed to initialize Chrome driver")
-
-    def closed(self, reason):
-        self.driver.quit()
-
+class HrSpider(scrapy.Spider):
     name = 'lex_spider'
-    allowed_domains = ['www.epfl.ch',  'www.admin.ch', 'www.efv.admin.ch']
-    start_urls = ['https://www.epfl.ch/about/overview/regulations-and-guidelines/polylex-en/polylex-search/']
-    database_name = 'LEXs'
+    allowed_domains = ['www.epfl.ch',  'www.admin.ch', 'www.efv.admin.ch', 'www.fedlex.admin.ch']
+    start_urls = [
+        'https://www.epfl.ch/about/overview/regulations-and-guidelines/polylex-en/polylex-search/',
+        'https://www.epfl.ch/about/overview/fr/reglements-et-directives/polylex/polylex-recherche/'
+    ]
     database_folder = os.path.join(root_project_dir, 'data', 'LEXs')
 
     # create folders
@@ -88,25 +57,7 @@ class LexSpider(scrapy.Spider):
         os.makedirs(database_folder)
 
     # Connect to database
-    conn = sqlite3.connect(os.path.join(database_folder, database_name + '.db'))
-
-    # Create a cursor
-    c = conn.cursor()
-
-    # Create table
-    c.execute("""CREATE TABLE IF NOT EXISTS source_docs (
-    id INTEGER PRIMARY KEY,
-    file BLOB,
-    date_detected TEXT,
-    date_extracted TEXT,
-    url TEXT,
-    title TEXT,
-    breadCrumb TEXT,
-    checksum TEXT,
-    UNIQUE(url, title)
-)""")
-
-    conn.commit()
+    conn, cursor = initialize_all_connection()
 
 
 
@@ -120,14 +71,13 @@ class LexSpider(scrapy.Spider):
 
     def has_page_changed_from_db(self, response):
         new_checksum = self.generate_checksum(response.text)
-        self.c.execute("SELECT checksum FROM source_docs WHERE url=?", (response.url,))
-        stored_checksum = self.c.fetchone()
+        self.cursor.execute("SELECT checksum FROM source_docs WHERE url=%s", (response.url,))
+        stored_checksum = self.cursor.fetchone()
         if stored_checksum:
             has_changed, new_checksum = self.has_page_changed(new_checksum, stored_checksum[0])
             return has_changed, new_checksum
         else:
             return True, new_checksum
-
 
     def visit_all_lex_pages(self, response):
         # Initialize an empty list to hold dictionaries of lex_number, URLs, and titles
@@ -245,9 +195,9 @@ class LexSpider(scrapy.Spider):
         print('Parsing lex page:', lex_number, url, title)
 
         if not redo:
-            #check if url is already in db
-            self.c.execute("SELECT url FROM source_docs WHERE url=?", (url,))
-            if self.c.fetchone():
+            # Check if url is already in db
+            self.cursor.execute("SELECT url FROM source_docs WHERE url=%s", (url,))
+            if self.cursor.fetchone():
                 return
 
         # Get BreadCrumbs using BeautifulSoup for parsing HTML
@@ -255,15 +205,13 @@ class LexSpider(scrapy.Spider):
         breadcrumb_list = self.get_breadcrumbs(soup)
         breadCrumb = str(breadcrumb_list)
 
-        # Set up the download directory (no need to base it on the date anymore)
+        # Set up the download directory
         download_directory = os.path.abspath(os.path.join(self.database_folder, 'temp_downloads'))
         if not os.path.exists(download_directory):
             os.makedirs(download_directory)
 
         # Initialize Selenium WebDriver with custom download directory
         options = webdriver.ChromeOptions()
-
-
         prefs = {
             "download.default_directory": download_directory,
             "download.prompt_for_download": False,
@@ -273,76 +221,107 @@ class LexSpider(scrapy.Spider):
         options.add_experimental_option("prefs", prefs)
         options.add_argument("--verbose")
         options.add_argument("--log-path=chromedriver.log")
-        service = Service(ChromeDriverManager().install())
-        newDriver = webdriver.Chrome(service=service, options=options)
-        # newDriver = webdriver.Chrome(service=service)
-        newDriver.get(url)
 
-        # Your logic to interact with the page, click the PDF button, and download
         try:
-            # Locate the <tr> element that contains a <td> with class 'no-padding-right is-active'
-            target_row = WebDriverWait(newDriver, 10).until(
-                EC.presence_of_element_located(
-                    (By.XPATH, "//tr[.//td[contains(@class, 'no-padding-right is-active')]]"))
-            )
-            # target_row = newDriver.find_element(By.XPATH, "//tr[.//td[contains(@class, 'no-padding-right is-active')]]")
+            # Get a working ChromeDriver path
+            chromedriver_path = get_working_chromedriver_path()
 
-            # Within this <tr>, find the <td> that contains the date and extract its text
-            date_element = target_row.find_element(By.XPATH, ".//td[contains(@class, 'no-padding-right is-active')]")
-            date_detected = date_element.text.strip()  # Expected format: 'DD.MM.YYYY'
-            date_detected = datetime.datetime.strptime(date_detected, '%d.%m.%Y').strftime('%Y-%m')
+            if chromedriver_path:
+                print(f"Using ChromeDriver at: {chromedriver_path}")
+                service = Service(chromedriver_path)
+                newDriver = webdriver.Chrome(service=service, options=options)
+            else:
+                print("Could not find a working ChromeDriver, trying default configuration...")
+                # Last resort - try without specifying a driver path
+                newDriver = webdriver.Chrome(options=options)
 
-            # Also find the PDF button within this <tr>
-            pdf_button = target_row.find_element(By.XPATH,
-                                                 ".//button[contains(@class, 'app-button') and contains(text(), 'PDF')]")
-            print('Found PDF button:', pdf_button)
-            pdf_button.click()
+            # Navigate to the URL
+            newDriver.get(url)
 
-            # pdf_button = WebDriverWait(newDriver, 3).until(
-            #     EC.element_to_be_clickable(
-            #         (By.XPATH, '//button[contains(@class, "app-button") and contains(text(), "PDF")]'))
-            # )
-            # print('pdf_button', pdf_button)
-            # pdf_button.click()
-
-            download_link = WebDriverWait(newDriver, 10).until(
-                EC.element_to_be_clickable(
-                    (By.XPATH,
-                     "//a[contains(@data-title-hover, 'Download') or contains(@data-title-hover, 'Télécharger')]")
+            # Your logic to interact with the page, click the PDF button, and download
+            try:
+                # Locate the <tr> element that contains a <td> with class 'no-padding-right is-active'
+                target_row = WebDriverWait(newDriver, 10).until(
+                    EC.presence_of_element_located(
+                        (By.XPATH, "//tr[.//td[contains(@class, 'no-padding-right is-active')]]"))
                 )
-            )
-            print('download_link', download_link)
-            download_link.click()
 
-            # Wait for the file to download
-            time.sleep(5)  # You might need to adjust this delay
+                # Within this <tr>, find the <td> that contains the date and extract its text
+                date_element = target_row.find_element(By.XPATH,
+                                                       ".//td[contains(@class, 'no-padding-right is-active')]")
+                date_detected = date_element.text.strip()  # Expected format: 'DD.MM.YYYY'
+                date_detected = datetime.datetime.strptime(date_detected, '%d.%m.%Y').strftime('%Y-%m')
 
-            # Process downloaded files
-            files = os.listdir(download_directory)
-            print('Screening files:', files)
-            for file in files:
-                if file.endswith('.pdf'):
-                    print('Processing file:', file)
-                    file_path = os.path.join(download_directory, file)
-                    # add to database
-                    with open(file_path, 'rb') as f:
-                        mypdf = f.read()
+                # Also find the PDF button within this <tr>
+                pdf_button = target_row.find_element(By.XPATH,
+                                                     ".//button[contains(@class, 'app-button') and contains(text(), 'PDF')]")
+                print('Found PDF button:', pdf_button)
+                pdf_button.click()
 
-                    self.c.execute(
-                        "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), url, str(lex_number)+'_'+title, breadCrumb,
-                         ''))
+                download_link = WebDriverWait(newDriver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH,
+                         "//a[contains(@data-title-hover, 'Download') or contains(@data-title-hover, 'Télécharger')]")
+                    )
+                )
+                print('download_link', download_link)
+                download_link.click()
 
-                    self.conn.commit()
+                # Wait for the file to download
+                time.sleep(5)  # You might need to adjust this delay
 
-                    # delete the pdf file
-                    os.remove(file_path)
+                # Process downloaded files
+                files = os.listdir(download_directory)
+                print('Screening files:', files)
+                for file in files:
+                    if file.endswith('.pdf'):
+                        print('Processing file:', file)
+                        file_path = os.path.join(download_directory, file)
+                        # add to database
+                        with open(file_path, 'rb') as f:
+                            mypdf = f.read()
+
+                        # Try to insert with duplicate handling
+                        try:
+                            # Try to insert first
+                            self.cursor.execute(
+                                "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username, doc_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), url,
+                                 str(lex_number) + '_' + title, breadCrumb,
+                                 '', 'LEX', 'all_users', 'pdf'))
+                        except pymysql.err.IntegrityError as e:
+                            if e.args[0] == 1062:  # MySQL error code for duplicate entry
+                                # If duplicate URL, update the existing record
+                                self.cursor.execute(
+                                    "UPDATE source_docs SET file=%s, date_detected=%s, date_extracted=%s, title=%s, breadCrumb=%s WHERE url=%s",
+                                    (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                     str(lex_number) + '_' + title, breadCrumb, url))
+                                print(f"Updated existing document for URL: {url}")
+                            else:
+                                # Re-raise if it's not a duplicate entry error
+                                raise
+
+                        self.conn.commit()
+
+                        # delete the pdf file
+                        os.remove(file_path)
+            except Exception as e:
+                print(f"Error during page interaction: {e}")
+                import traceback
+                traceback.print_exc()
 
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error setting up WebDriver: {e}")
+            import traceback
+            traceback.print_exc()
+            return
 
         finally:
-            newDriver.quit()
+            if 'newDriver' in locals():
+                try:
+                    newDriver.quit()
+                except Exception as e:
+                    print(f"Error closing WebDriver: {e}")
 
     def parse(self, response):
         yield from self.visit_all_lex_pages(response)
@@ -380,15 +359,14 @@ class LexSpider(scrapy.Spider):
         breadCrumb = str(breadcrumb_list)
 
         # insert into database
-        self.c.execute(
-            "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        self.cursor.execute(
+            "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username, doc_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s )",
             (pdf_file[0].getbuffer(), date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), response.url,
              title, breadCrumb,
-             new_checksum))
+             new_checksum, 'LEX_new', 'all_users', 'pdf'))
 
 
         self.conn.commit()
-
 
     def save_document(self, response):
         print('calling save document on', response.url)
@@ -421,17 +399,30 @@ class LexSpider(scrapy.Spider):
         date_detected = self.extract_date_from_url(response.url)
 
         # insert into database
-        self.c.execute(
-            "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), response.url, filename, '',
-             ''))
+        try:
+            # Try to insert first
+            self.cursor.execute(
+                "INSERT INTO source_docs (file, date_detected, date_extracted, url, title, breadCrumb, checksum, library, username, doc_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), response.url, filename, '',
+                '', 'LEX_new', 'all_users', 'pdf'))
+        except pymysql.err.IntegrityError as e:
+            if e.args[0] == 1062:  # MySQL error code for duplicate entry
+                # If duplicate URL, update the existing record
+                self.cursor.execute(
+                    "UPDATE source_docs SET file=%s, date_detected=%s, date_extracted=%s, title=%s WHERE url=%s",
+                    (mypdf, date_detected, datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), filename,
+                     response.url))
+                print(f"Updated existing document for URL: {response.url}")
+            else:
+                # Re-raise if it's not a duplicate entry error
+                raise
 
         self.conn.commit()
 
         # clean temp folder
         for file in os.listdir(temp_folder):
             os.remove(os.path.join(temp_folder, file))
-
 
     def extract_date_from_url(self, url):
         date_pattern = r'/(\d{4})/(\d{2})/'
@@ -457,7 +448,6 @@ class LexSpider(scrapy.Spider):
 
         return filename
 
-
     def get_breadcrumbs(self, soup):
         # Find the breadcrumb <ol> element
         breadcrumbs_ol = soup.find('ol', class_='breadcrumb')
@@ -473,3 +463,57 @@ class LexSpider(scrapy.Spider):
             breadcrumbs.append(breadcrumb_text)
 
         return breadcrumbs
+
+    def closed(self, reason):
+        """Method called when the spider is closed."""
+        print(f"Spider closed with reason: {reason}")
+
+        if reason == 'finished':  # Only do this if the spider completed successfully
+            try:
+                print("Starting post-crawl database cleanup...")
+
+                # Check if we have any LEX_new entries
+                self.cursor.execute("SELECT COUNT(*) FROM source_docs WHERE library = 'LEX_new'")
+                lex_new_count = self.cursor.fetchone()[0]
+
+                if lex_new_count > 0:
+                    print(f"Found {lex_new_count} new entries. Proceeding with cleanup...")
+
+                    # Set a minimum threshold for new entries as a safety measure
+                    min_expected_entries = 10  # Adjust this based on your expectations
+                    if lex_new_count < min_expected_entries:
+                        print(
+                            f"Only {lex_new_count} new entries found, which is less than the expected minimum of {min_expected_entries}.")
+                        print("Skipping cleanup as a precaution. Please review the crawl results.")
+                        return
+
+                    # Begin transaction
+                    self.cursor.execute("START TRANSACTION")
+
+                    # Delete old LEX entries from source_docs
+                    self.cursor.execute("DELETE FROM source_docs WHERE library = 'LEX'")
+                    deleted_source_docs = self.cursor.rowcount
+                    print(f"Deleted {deleted_source_docs} old entries from source_docs")
+
+                    # Rename LEX_new to LEX in source_docs
+                    self.cursor.execute("UPDATE source_docs SET library = 'LEX' WHERE library = 'LEX_new'")
+                    updated_source_docs = self.cursor.rowcount
+                    print(f"Renamed {updated_source_docs} entries from LEX_new to LEX in source_docs")
+
+                    # Commit transaction
+                    self.cursor.execute("COMMIT")
+                    print("Database cleanup completed successfully!")
+                else:
+                    print("No new entries found. Skipping cleanup.")
+
+            except Exception as e:
+                print(f"Error during post-crawl cleanup: {e}")
+                # Rollback transaction if something went wrong
+                self.cursor.execute("ROLLBACK")
+                import traceback
+                traceback.print_exc()
+            finally:
+                # Close database connection
+                if hasattr(self, 'conn') and self.conn:
+                    self.conn.close()
+                    print("Database connection closed.")

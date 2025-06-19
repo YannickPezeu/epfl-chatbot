@@ -17,7 +17,7 @@ const PDFDrawer: React.FC<PDFDrawerProps> = ({
 
     const { BASE_URL, pdfId, pdfPageNumber } = useStore();
   
-  const fullPdfUrl = `${BASE_URL}/source_docs/view-pdf/${pdfId}?library_name=${library_name}#page=${pdfPageNumber}`;
+  const fullPdfUrl = `${BASE_URL}/source_docs/view-source-doc/${pdfId}?library_name=${library_name}#page=${pdfPageNumber}`;
   // console.log('fullPdfUrl', fullPdfUrl)
 
   return (

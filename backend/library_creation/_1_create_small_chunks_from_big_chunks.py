@@ -133,12 +133,12 @@ def cut_text_into_small_chunks(text, tokenizer, big_chunk_id, chunk_max_length):
 @reconnect_on_failure
 def insert_small_chunks_into_db(library, username, cursor, connection=None):
 
-    cursor.execute("SELECT id, pdf_id, page_content FROM big_chunks where library=%s AND username=%s", (library, username))
+    cursor.execute("SELECT id, source_doc_id, page_content FROM big_chunks where library=%s AND username=%s", (library, username))
     big_chunks = cursor.fetchall()
     for i, big_chunk in enumerate(big_chunks):
         print(f'processing big chunk {i}/{len(big_chunks)}')
         # print(big_chunk)
-        big_chunk_id, pdf_id, page_content = big_chunk
+        big_chunk_id, source_doc_id, page_content = big_chunk
 
         # check if small chunks for this big chunk already exist
         cursor.execute("SELECT id FROM small_chunks WHERE big_chunk_id=%s AND library=%s AND username=%s",

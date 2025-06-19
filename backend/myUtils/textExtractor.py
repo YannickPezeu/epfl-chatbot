@@ -151,14 +151,14 @@ if __name__ == '__main__':
 
     files = os.listdir('testdata')
     docx_files = [f for f in files if f.endswith('.docx')]
-    print(docx_files)
+    # print(docx_files)
 
 
     xls_files = [f for f in files if f.endswith('.xls') or f.endswith('.xlsx')]
-    print(xls_files)
+    # print(xls_files)
 
     for f in files:
-        print('file:', f)
+        # print('file:', f)
         myread = read_docx_pdf_xlsx(os.path.join( 'testdata', f))
         print(myread)
         print(len(myread))

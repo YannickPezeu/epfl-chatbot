@@ -83,7 +83,7 @@ def get_response_no_model(user_input, session):
             'title': source['title'],
             'page_number': source['page_number'],
             'document_index': source['document_index'],
-            'pdf_id': source['pdf_id'],
+            'source_doc_id': source['source_doc_id'],
             'url': source['url']
         } for source in response
     ]

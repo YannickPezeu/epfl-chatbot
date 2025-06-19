@@ -15,18 +15,18 @@ from myUtils.connect_acad2 import reconnect_on_failure
 print('root_folder:', root_folder)
 
 
-from myUtils.read_pdf_online import read_pdf_from_db_online
+from myUtils.read_pdf_online import read_source_doc_from_db_online
 
 
 class BigChunk(BaseModel):
-    pdf_id: int
+    source_doc_id: int
     page_number: int
     page_content: str
     three_page_content: str
 
-def create_big_chunks_from_pdf(cursor, pdf_id):
+def create_big_chunks_from_source_doc(cursor, source_doc_id):
     print('create_big_chunks_from_pdf')
-    pages = read_pdf_from_db_online(pdf_id, cursor)
+    pages = read_source_doc_from_db_online(source_doc_id, cursor)
     print('pages', pages)
 
     big_chunks = []
@@ -42,7 +42,7 @@ def create_big_chunks_from_pdf(cursor, pdf_id):
         else:
             three_page_content = pages[i-1].page_content + page.page_content + pages[i+1].page_content
         my_big_chunk = BigChunk(
-            pdf_id=pdf_id,
+            source_doc_id=source_doc_id,
             page_number=page.metadata['page'],
             page_content=page.page_content,
             three_page_content=three_page_content
@@ -51,7 +51,7 @@ def create_big_chunks_from_pdf(cursor, pdf_id):
     return big_chunks
 
 
-def create_big_chunk_from_raw_text(cursor, pdf_id, raw_text):
+def create_big_chunk_from_json(source_doc_id, raw_text):
     print('create_big_chunk_from_raw_text')
     # consider a page is 1000 tokens
 
@@ -78,7 +78,7 @@ def create_big_chunk_from_raw_text(cursor, pdf_id, raw_text):
             three_page_content = pages_in_text[i - 1] + page + pages_in_text[i + 1]
 
         my_big_chunk = BigChunk(
-            pdf_id=pdf_id,
+            source_doc_id=source_doc_id,
             page_number=i + 1,  # Start page number from 1 instead of 0
             page_content=page,
             three_page_content=three_page_content
@@ -93,8 +93,10 @@ def create_big_chunk_from_raw_text(cursor, pdf_id, raw_text):
 
 
 
+
+
 @reconnect_on_failure
-def insert_big_chunks_into_db(library, username, cursor):
+def insert_big_chunks_into_db(library, username, cursor, conn):
     # Connect to MariaDB
 
     # Fetch all source_docs
@@ -106,17 +108,18 @@ def insert_big_chunks_into_db(library, username, cursor):
     for source_doc in source_docs:
         source_doc_id, file = source_doc
         print(f"Processing PDF {source_doc_id}...")
-        big_chunks = create_big_chunks_from_pdf(cursor, source_doc_id)  # Assuming this function is defined elsewhere
+        big_chunks = create_big_chunks_from_source_doc(cursor, source_doc_id)  # Assuming this function is defined elsewhere
         for big_chunk in big_chunks:
             print(f"Inserting big chunk for page {big_chunk.page_number}...")
             cursor.execute(
                 """
                 INSERT IGNORE INTO big_chunks 
-                (pdf_id, page_number, page_content, three_page_content, library, username) 
+                (source_doc_id, page_number, page_content, three_page_content, library, username) 
                 VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                (big_chunk.pdf_id, big_chunk.page_number, big_chunk.page_content, big_chunk.three_page_content, library, username)
+                (big_chunk.source_doc_id, big_chunk.page_number, big_chunk.page_content, big_chunk.three_page_content, library, username)
             )
+        conn.commit()
 
 
 if __name__ == '__main__':

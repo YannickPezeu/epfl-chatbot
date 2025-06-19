@@ -9,7 +9,7 @@ export interface ParametersProps {
 
 export interface Source {
   page_number: string;
-  pdf_id: any;
+  source_doc_id: any;
   title: string;
   page: string;
   document_index: number;

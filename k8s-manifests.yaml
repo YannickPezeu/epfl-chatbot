@@ -4,7 +4,7 @@ kind: Namespace
 metadata:
   name: epfl-chatbot
 ---
-# Redis Deployment
+# Redis Deployment with Increased Memory
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,23 +25,33 @@ spec:
         image: redis:7.2-alpine
         ports:
         - containerPort: 6379
+        command:
+        - redis-server
+        - --maxmemory
+        - "3gb"
+        - --maxmemory-policy
+        - "allkeys-lru"
+        - --save
+        - ""  # Disable persistence for performance
         resources:
           requests:
-            cpu: "100m"
-            memory: "128Mi"
-            ephemeral-storage: "500Mi"
-          limits:
             cpu: "200m"
-            memory: "256Mi"
+            memory: "2Gi"  # Increased from 128Mi
             ephemeral-storage: "1Gi"
+          limits:
+            cpu: "500m"  # Increased from 200m
+            memory: "4Gi"  # Increased from 256Mi
+            ephemeral-storage: "2Gi"
         volumeMounts:
         - name: redis-data
           mountPath: /data
+        env:
+        - name: REDIS_AOF_ENABLED
+          value: "no"  # Disable AOF for performance
       volumes:
       - name: redis-data
         emptyDir:
-          sizeLimit: 1Gi
-
+          sizeLimit: 5Gi  # Increased from 1Gi
 ---
 # Redis Service
 apiVersion: v1

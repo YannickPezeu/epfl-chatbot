@@ -14,7 +14,7 @@ load_dotenv()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s - %(filename)s:%(lineno)d'
 )
 logger = logging.getLogger(__name__)

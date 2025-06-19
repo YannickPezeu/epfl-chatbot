@@ -204,7 +204,8 @@ dtypes_for_models = {
     'gte': 'float32',
     'embaas': 'float32',
     'fr_long_context': 'float32',
-    'rcp': 'float64'
+    'rcp': 'float64',
+    'rcp_qwen_embedding': 'float64'
 }
 
 if __name__ == '__main__':

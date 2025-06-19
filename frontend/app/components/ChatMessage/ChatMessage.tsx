@@ -104,7 +104,7 @@ const processSourceLinks = (
           <span
             key={`source-${baseKey}-${index}`}
             onClick={() => onClickSource(
-              source.pdf_id,
+              source.source_doc_id,
               parseInt(source.page_number) + 1
             )}
             style={{
@@ -296,7 +296,7 @@ export const ChatMessage = ({
             <div key={index} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', width: '100%', flexWrap: 'nowrap' }}>
               <Tooltip title="Opens saved PDF at the right page">
                 <span
-                  onClick={() => onClickSource(source.pdf_id, parseInt(source.page_number) + 1)}
+                  onClick={() => onClickSource(source.source_doc_id, parseInt(source.page_number) + 1)}
                   style={{ 
                     cursor: 'pointer',
                     flexGrow: 1,
@@ -415,7 +415,7 @@ export const ChatMessage = ({
                       <div
                         onClick={() =>
                           onClickSource(
-                            source.pdf_id,
+                            source.source_doc_id,
                             parseInt(source.page_number) + 1
                           )
                         }

@@ -81,7 +81,7 @@ def create_new_conversation(username):
 def get_chat_history_for_agent(conversation_id):
     print('get_chat_history_for_agent:', conversation_id)
     msgs = get_chat_history(conversation_id)
-    print('msgs:', msgs)
+    # print('msgs:', msgs)
     return convert_db_messages_to_langchain_messages(msgs)
 
 
@@ -140,13 +140,13 @@ def createAgent(
 
     if conversation_id is not None and conversation_id:
         db_messages = get_chat_history(conversation_id)
-        print('db_messages:', db_messages)
+        # print('db_messages:', db_messages)
         chat_messages = convert_db_messages_to_langchain_messages(db_messages)
     else:
         conversation_id = create_new_conversation(username)
         chat_messages = []
 
-    print('chat_messages:', chat_messages)
+    # print('chat_messages:', chat_messages)
 
     if library == 'no_library':
         agent = (
@@ -172,7 +172,7 @@ def createAgent(
         raise ValueError('interaction_type must be chat or email')
 
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=False, return_intermediate_steps=True)
-    print('agent_executor:', agent_executor)
+    # print('agent_executor:', agent_executor)
     return agent_executor, conversation_id
 
 

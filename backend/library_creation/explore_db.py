@@ -7,5 +7,5 @@ conn = sqlite3.connect(f'{project_name}__{model_name}.db')
 # Create a cursor
 c = conn.cursor()
 
-c.execute("SELECT id, pdf_id, page_number FROM big_chunks ORDER BY pdf_id, page_number")
+c.execute("SELECT id, source_doc_id, page_number FROM big_chunks ORDER BY source_doc_id, page_number")
 print(c.fetchall())

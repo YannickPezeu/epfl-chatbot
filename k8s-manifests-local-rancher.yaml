@@ -1,0 +1,173 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: epfl-chatbot
+---
+# Redis Deployment with Increased Memory
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epfl-chatbot-redis
+  namespace: epfl-chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: epfl-chatbot-redis
+  template:
+    metadata:
+      labels:
+        app: epfl-chatbot-redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        ports:
+        - containerPort: 6379
+        command:
+        - redis-server
+        - --maxmemory
+        - "3gb"
+        - --maxmemory-policy
+        - "allkeys-lru"
+        - --save
+        - ""  # Disable persistence for performance
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "2Gi"
+            ephemeral-storage: "1Gi"
+          limits:
+            cpu: "500m"
+            memory: "4Gi"
+            ephemeral-storage: "2Gi"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        env:
+        - name: REDIS_AOF_ENABLED
+          value: "no"  # Disable AOF for performance
+      volumes:
+      - name: redis-data
+        emptyDir:
+          sizeLimit: 5Gi
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: epfl-chatbot-redis
+  namespace: epfl-chatbot
+spec:
+  selector:
+    app: epfl-chatbot-redis
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epfl-chatbot-compose-backend
+  namespace: epfl-chatbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: epfl-chatbot-compose-backend
+  template:
+    metadata:
+      labels:
+        app: epfl-chatbot-compose-backend
+    spec:
+      containers:
+      - name: epfl-chatbot-compose-backend
+        image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-backend:latest
+        imagePullPolicy: Never  # Use local image only
+        ports:
+        - containerPort: 8000
+        env:
+        - name: REDIS_HOST
+          value: "epfl-chatbot-redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: OPENAI_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-credentials
+              key: OPENAI_SECRET_KEY
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "2Gi"
+            ephemeral-storage: "4Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+            ephemeral-storage: "6Gi"
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: epfl-chatbot-backend-service-compose
+  namespace: epfl-chatbot
+spec:
+  type: ClusterIP  # Changed from NodePort for simplicity
+  selector:
+    app: epfl-chatbot-compose-backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: epfl-chatbot-compose-frontend
+  namespace: epfl-chatbot
+spec:
+  replicas: 1  # Reduced to 1 for local development
+  selector:
+    matchLabels:
+      app: epfl-chatbot-compose-frontend
+  template:
+    metadata:
+      labels:
+        app: epfl-chatbot-compose-frontend
+    spec:
+      containers:
+      - name: epfl-chatbot-compose-frontend
+        image: ic-registry.epfl.ch/mr-pezeu/epfl-chatbot-compose-frontend:latest
+        imagePullPolicy: Never  # Use local image only
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NEXT_PUBLIC_BACKEND_URL
+          value: "http://epfl-chatbot-backend-service-compose:8000"
+        - name: BACKEND_URL
+          value: "http://epfl-chatbot-backend-service-compose:8000"
+        - name: NODE_ENV
+          value: "development"  # Changed to development for local
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: epfl-chatbot-frontend-service-compose
+  namespace: epfl-chatbot
+spec:
+  type: ClusterIP  # Changed from NodePort for simplicity
+  selector:
+    app: epfl-chatbot-compose-frontend
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP

@@ -1,4 +1,5 @@
 import json
+import time
 
 import numpy as np
 # from sentence_transformers import SentenceTransformer
@@ -20,6 +21,15 @@ azure_api_base = os.getenv('AZURE_OPENAI_ENDPOINT_EMBEDDING')
 
 from openai import OpenAI
 import requests
+import logging
+from typing import List
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 print('initializing models...')
 models = {
@@ -38,6 +48,8 @@ def get_embeddings(text_list, model_name, mistral_key=None, openai_key=None):
     :param model_name:
     :return: embeddings_nd_array of shape (len(text_list), embedding_size)
     '''
+    logger.info('getting embeddings... for {} texts {}'.format(len(text_list),model_name))
+
     # print('mistral_key:', mistral_key)
     # print('openai_key:', openai_key)
     # if model_name == 'camembert':
@@ -84,7 +96,81 @@ def get_embeddings(text_list, model_name, mistral_key=None, openai_key=None):
         except Exception as e:
             raise(e)
 
+
     elif model_name == 'rcp':
+
+        base_url = "https://inference-dev.rcp.epfl.ch/v1"
+
+        endpoint = f"{base_url}/embeddings"
+
+        # Prepare headers
+
+        headers = {
+
+            "Authorization": f"Bearer {rcp_api_key}",
+
+            "Content-Type": "application/json"
+
+        }
+
+        # Ensure text is a list if it's a single string
+
+        if isinstance(text_list, str):
+            text_list = [text_list]
+
+        # Prepare request payload
+
+        payload = {
+
+            "model": "Linq-AI-Research/Linq-Embed-Mistral",
+
+            "input": text_list
+
+        }
+
+        # Make the request
+
+        try:
+
+            response = requests.post(
+
+                endpoint,
+
+                headers=headers,
+
+                data=json.dumps(payload),
+
+                timeout=180
+
+            )
+
+            # Check if the request was successful
+
+            response.raise_for_status()
+
+            # Return the response data
+
+            result = response.json()
+
+            embedding_list = [result["data"][i]["embedding"] for i in range(len(result["data"]))]
+
+            embeddings_nd_array = np.array(embedding_list)
+
+            return embeddings_nd_array
+
+
+        except requests.exceptions.RequestException as e:
+
+            print(f"Error: {e}")
+
+            logger.error(f"Error: {e}")
+
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response content: {e.response.text[:100]}")
+
+            return None
+
+    elif model_name == 'rcp_error_test':
         base_url = "https://inference-dev.rcp.epfl.ch/v1"
         endpoint = f"{base_url}/embeddings"
 
@@ -100,7 +186,7 @@ def get_embeddings(text_list, model_name, mistral_key=None, openai_key=None):
 
         # Prepare request payload
         payload = {
-            "model": "Linq-AI-Research/Linq-Embed-Mistral",
+            "model": "Linq-AI-Research/Linq-Embed-Mistral_error_test",
             "input": text_list
         }
 
@@ -110,7 +196,7 @@ def get_embeddings(text_list, model_name, mistral_key=None, openai_key=None):
                 endpoint,
                 headers=headers,
                 data=json.dumps(payload),
-                timeout=180
+                timeout=10
             )
 
             # Check if the request was successful
@@ -126,8 +212,81 @@ def get_embeddings(text_list, model_name, mistral_key=None, openai_key=None):
 
         except requests.exceptions.RequestException as e:
             print(f"Error: {e}")
+            logger.error(f"Error: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                print(f"Response content: {e.response.text}")
+                print(f"Response content: {e.response.text[:100]}")
+            return None
+
+    elif model_name == 'rcp_qwen_embedding':
+        base_url = "https://inference-dev.rcp.epfl.ch/v1"
+
+        endpoint = f"{base_url}/embeddings"
+
+        # Prepare headers
+
+        headers = {
+
+            "Authorization": f"Bearer {rcp_api_key}",
+
+            "Content-Type": "application/json"
+
+        }
+
+        # Ensure text is a list if it's a single string
+
+        if isinstance(text_list, str):
+            text_list = [text_list]
+
+        # Prepare request payload
+
+        payload = {
+
+            "model": "Qwen/Qwen3-Embedding-8B",
+
+            "input": text_list
+
+        }
+
+        # Make the request
+
+        try:
+
+            response = requests.post(
+
+                endpoint,
+
+                headers=headers,
+
+                data=json.dumps(payload),
+
+                timeout=180
+
+            )
+
+            # Check if the request was successful
+
+            response.raise_for_status()
+
+            # Return the response data
+
+            result = response.json()
+
+            embedding_list = [result["data"][i]["embedding"] for i in range(len(result["data"]))]
+
+            embeddings_nd_array = np.array(embedding_list)
+
+            return embeddings_nd_array
+
+
+        except requests.exceptions.RequestException as e:
+
+            print(f"Error: {e}")
+
+            logger.error(f"Error: {e}")
+
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response content: {e.response.text[:100]}")
+
             return None
 
 
@@ -157,45 +316,93 @@ def get_embeddings(text_list, model_name, mistral_key=None, openai_key=None):
 
 
 def check_embeddings():
-    text_list = ['Hello, how are you?', 'I am fine, thank you.']
-    model_name = 'camembert'
-    embeddings = get_embeddings(text_list, model_name)
-    print(embeddings)
-    print(len(embeddings))
-    print(embeddings.shape)
-    print(type(embeddings))
-    print('-------------------')
+    text_list = generate_random_strings(count=100, min_length=50, max_length=500)
 
-    model_name = 'mpnet'
-    embeddings = get_embeddings(text_list, model_name)
-    print(embeddings)
-    print(len(embeddings))
-    print(embeddings.shape)
-    print(type(embeddings))
-    print('-------------------')
+    for model_name in ['rcp', 'rcp_error_test', 'rcp_qwen_embedding']:
+        try:
+            start = time.time()
+            embeddings = get_embeddings(text_list, model_name)
+            end = time.time()
+            print(f"Time taken for model {model_name}: {end - start:.2f} seconds")
+            print(f"Model: {model_name}")
 
-    model_name = 'mistral'
-    embeddings = get_embeddings(text_list, model_name)
-    print(embeddings)
-    print(len(embeddings))
-    print(embeddings.shape)
-    print(type(embeddings))
-    print('-------------------')
+            # Basic info
+            print(f"Type: {type(embeddings)}")
+            print(f"Shape: {embeddings.shape}")
+            print(f"Dtype: {embeddings.dtype}")
 
-    model_name = 'openai'
-    embeddings = get_embeddings(text_list, model_name)
-    print(embeddings)
-    print(len(embeddings))
-    print(embeddings.shape)
-    print(type(embeddings))
-    print('-------------------')
+            # Validate the structure
+            if isinstance(embeddings, np.ndarray):
+                print("✓ Main object is numpy array")
 
-def test_similarity(text1, text2, model_name):
+                # Check if it's 2D as expected
+                if len(embeddings.shape) == 2:
+                    print(f"✓ 2D array with {embeddings.shape[0]} embeddings of dimension {embeddings.shape[1]}")
+                else:
+                    print(f"✗ Unexpected shape: {embeddings.shape}")
+
+                # Check for any NaN or infinite values
+                if np.isfinite(embeddings).all():
+                    print("✓ All values are finite")
+                else:
+                    print("✗ Contains NaN or infinite values")
+
+                # Show data type details
+                print(f"Data type: {embeddings.dtype}")
+                print(f"Item size: {embeddings.itemsize} bytes")
+
+            else:
+                print("✗ Not a numpy array")
+
+            print('-------------------')
+        except Exception as e:
+            print(f"Error with model {model_name}: {e}")
+            continue
+
+
+import random
+import string
+
+
+def generate_random_string(length):
+    """Generate a random string of specified length using letters, digits, and some punctuation."""
+    characters = string.ascii_letters + string.digits + string.punctuation + ' '
+    return ''.join(random.choice(characters) for _ in range(length))
+
+
+def generate_random_strings(count=100, min_length=50, max_length=500):
+    """Generate a list of random strings with random lengths between min_length and max_length."""
+    random_strings = []
+
+    for i in range(count):
+        # Generate random length between min_length and max_length (inclusive)
+        length = random.randint(min_length, max_length)
+
+        # Generate random string of that length
+        random_string = generate_random_string(length)
+        random_strings.append(random_string)
+
+        # Optional: Print progress every 100 strings
+        if (i + 1) % 100 == 0:
+            print(f"Generated {i + 1} strings...")
+
+    return random_strings
+
+
+
+
+
+def evaluate_similarity(text1, text2, model_name):
     embeddings = get_embeddings([text1, text2], model_name)
     distance = euclidean_distances([embeddings[0]], [embeddings[1]])[0][0]
     return distance
 
 if __name__ == '__main__':
+
+    check_embeddings()
+
+
+    exit()
 
     import dotenv
     from sklearn.metrics.pairwise import euclidean_distances
@@ -315,8 +522,8 @@ if __name__ == '__main__':
             text1, text2 = sentence_pair
             print('text1:', text1)
             print('text2:', text2)
-            distance_camembert = test_similarity(text1, text2, 'camembert')
-            distance_gte = test_similarity(text1, text2, 'gte')
+            distance_camembert = evaluate_similarity(text1, text2, 'camembert')
+            distance_gte = evaluate_similarity(text1, text2, 'gte')
             # distance_mpnet = test_similarity(text1, text2, 'mpnet')
             # distance_mistral = test_similarity(text1, text2, 'mistral')
             # distance_openai = test_similarity(text1, text2, 'openai')

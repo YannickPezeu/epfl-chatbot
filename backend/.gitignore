@@ -33,3 +33,6 @@ csv
 *.doc
 *.docx
 *.db
+/puppeteer_scraper_full_epfl/epfl_full_site_data
+/puppeteer_scraper_full_epfl/epfl_full_site_data2
+/
